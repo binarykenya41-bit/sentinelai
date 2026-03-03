@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -78,17 +79,15 @@ export function VulnTable({ vulnerabilities, selected, onSelect }: VulnTableProp
                 <Badge variant="outline" className={statusBadge(vuln.status)}>{vuln.status}</Badge>
               </TableCell>
               <TableCell>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 border-border bg-secondary text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onSelect(vuln)
-                  }}
-                >
-                  View
-                </Button>
+                <Link href={`/vulnerabilities/${encodeURIComponent(vuln.cve)}`} onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 border-border bg-secondary text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  >
+                    Detail
+                  </Button>
+                </Link>
               </TableCell>
             </TableRow>
           ))}

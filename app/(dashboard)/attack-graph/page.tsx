@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -105,26 +106,33 @@ export default function AttackGraphPage() {
             <CardContent>
               <div className="grid grid-cols-3 gap-3">
                 {nodes.map((node) => (
-                  <button
-                    key={node.id}
-                    onClick={() => setSelectedNode(node)}
-                    className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
-                      selectedNode?.id === node.id
-                        ? "border-primary/40 bg-primary/5"
-                        : "border-border bg-secondary/50 hover:bg-secondary"
-                    }`}
-                  >
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-card ${riskColor(node.riskScore)}`}>
-                      <NodeIcon type={node.type} />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-mono text-xs font-semibold text-card-foreground">{node.label}</span>
-                      <span className="text-[10px] uppercase text-muted-foreground">{node.type}</span>
-                      <span className={`font-mono text-xs font-bold ${riskColor(node.riskScore)}`}>
-                        Risk: {node.riskScore}
-                      </span>
-                    </div>
-                  </button>
+                  <div key={node.id} className="flex flex-col gap-0">
+                    <button
+                      onClick={() => setSelectedNode(node)}
+                      className={`flex items-center gap-3 rounded-t-lg border border-b-0 p-3 text-left transition-colors ${
+                        selectedNode?.id === node.id
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-border bg-secondary/50 hover:bg-secondary"
+                      }`}
+                    >
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-card ${riskColor(node.riskScore)}`}>
+                        <NodeIcon type={node.type} />
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-xs font-semibold text-card-foreground">{node.label}</span>
+                        <span className="text-[10px] uppercase text-muted-foreground">{node.type}</span>
+                        <span className={`font-mono text-xs font-bold ${riskColor(node.riskScore)}`}>
+                          Risk: {node.riskScore}
+                        </span>
+                      </div>
+                    </button>
+                    <Link
+                      href={`/attack-graph/${node.id}`}
+                      className="flex items-center justify-center rounded-b-lg border border-border bg-secondary/30 px-3 py-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                    >
+                      View Full Detail
+                    </Link>
+                  </div>
                 ))}
               </div>
             </CardContent>

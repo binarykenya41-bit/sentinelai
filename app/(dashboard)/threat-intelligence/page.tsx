@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -57,16 +58,18 @@ export default function ThreatIntelligencePage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-2 p-4 pt-0">
               {cisaKev.map((item) => (
-                <div key={item.cve} className="flex items-center justify-between rounded-md border border-border bg-secondary/50 p-3">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-mono text-xs font-semibold text-card-foreground">{item.cve}</span>
-                    <span className="text-[11px] text-muted-foreground">{item.product}</span>
+                <Link key={item.cve} href={`/threat-intelligence/${encodeURIComponent(item.cve)}`}>
+                  <div className="flex items-center justify-between rounded-md border border-border bg-secondary/50 p-3 transition-colors hover:bg-secondary">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono text-xs font-semibold text-card-foreground">{item.cve}</span>
+                      <span className="text-[11px] text-muted-foreground">{item.product}</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-[10px] text-muted-foreground">Added: {item.dateAdded}</span>
+                      <span className="text-[10px] text-destructive">Due: {item.dueDate}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-[10px] text-muted-foreground">Added: {item.dateAdded}</span>
-                    <span className="text-[10px] text-destructive">Due: {item.dueDate}</span>
-                  </div>
-                </div>
+                </Link>
               ))}
             </CardContent>
           </Card>

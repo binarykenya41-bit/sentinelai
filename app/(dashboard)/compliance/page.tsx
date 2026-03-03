@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -31,14 +32,14 @@ const frameworks = [
 ]
 
 const controlsList = [
-  { control: "A.8.8 - Management of technical vulnerabilities", framework: "ISO 27001", vulns: 5, status: "Failing", progress: 45 },
-  { control: "A.8.9 - Configuration management", framework: "ISO 27001", vulns: 2, status: "In Progress", progress: 70 },
-  { control: "CC6.1 - Logical and Physical Access Controls", framework: "SOC 2", vulns: 3, status: "Failing", progress: 35 },
-  { control: "CC7.2 - Monitoring of System Components", framework: "SOC 2", vulns: 1, status: "Passing", progress: 100 },
-  { control: "6.2.4 - Software on all system components is protected", framework: "PCI-DSS", vulns: 8, status: "Failing", progress: 25 },
-  { control: "6.3.1 - Security vulnerabilities identified and managed", framework: "PCI-DSS", vulns: 4, status: "In Progress", progress: 60 },
-  { control: "11.3.1 - Internal vulnerability scans performed", framework: "PCI-DSS", vulns: 0, status: "Passing", progress: 100 },
-  { control: "A.12.6.1 - Management of technical vulnerabilities", framework: "ISO 27001", vulns: 3, status: "In Progress", progress: 55 },
+  { id: "a-8-8", control: "A.8.8 - Management of technical vulnerabilities", framework: "ISO 27001", vulns: 5, status: "Failing", progress: 45 },
+  { id: "a-8-9", control: "A.8.9 - Configuration management", framework: "ISO 27001", vulns: 2, status: "In Progress", progress: 70 },
+  { id: "cc6-1", control: "CC6.1 - Logical and Physical Access Controls", framework: "SOC 2", vulns: 3, status: "Failing", progress: 35 },
+  { id: "cc7-2", control: "CC7.2 - Monitoring of System Components", framework: "SOC 2", vulns: 1, status: "Passing", progress: 100 },
+  { id: "6-2-4", control: "6.2.4 - Software on all system components is protected", framework: "PCI-DSS", vulns: 8, status: "Failing", progress: 25 },
+  { id: "6-3-1", control: "6.3.1 - Security vulnerabilities identified and managed", framework: "PCI-DSS", vulns: 4, status: "In Progress", progress: 60 },
+  { id: "11-3-1", control: "11.3.1 - Internal vulnerability scans performed", framework: "PCI-DSS", vulns: 0, status: "Passing", progress: 100 },
+  { id: "a-12-6-1", control: "A.12.6.1 - Management of technical vulnerabilities", framework: "ISO 27001", vulns: 3, status: "In Progress", progress: 55 },
 ]
 
 function scoreColor(score: number) {

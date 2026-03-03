@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -119,6 +120,11 @@ export default function PatchAutomationPage() {
                 <div className="flex items-center gap-2">
                   {prStatusBadge(patch.prStatus)}
                   {ciStatusBadge(patch.ciResult)}
+                  <Link href={`/patch-automation/${encodeURIComponent(patch.cve)}`}>
+                    <Button variant="outline" size="sm" className="h-7 border-border bg-secondary text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground">
+                      Detail
+                    </Button>
+                  </Link>
                   {patch.prStatus === "Open" && (
                     <Button size="sm" className="h-7 bg-primary text-primary-foreground hover:bg-primary/90 text-xs">
                       Merge
