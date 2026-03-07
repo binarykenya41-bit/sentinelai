@@ -11,9 +11,11 @@ export interface VulnContext {
 }
 
 export interface AssetContext {
-  type: string
+  type?: string
+  asset_type?: string
   hostname: string
   criticality: "low" | "medium" | "high" | "critical"
+  environment?: string
   tags?: string[]
 }
 
@@ -35,8 +37,9 @@ export interface RiskReasoningResult {
 export async function analyzeRisk(
   vuln: VulnContext,
   asset: AssetContext,
-  graph: GraphPosition
+  graph?: GraphPosition
 ): Promise<RiskReasoningResult> {
+  graph = graph ?? { inbound_paths: 0, distance_from_edge: 1 }
   const prompt = `You are a senior security analyst for Sentinel AI. Analyze the following vulnerability in context and produce a structured risk assessment.
 
 ## Vulnerability
@@ -44,12 +47,12 @@ export async function analyzeRisk(
 - CVSS v3: ${vuln.cvss_v3}
 - EPSS Probability: ${(vuln.epss_score * 100).toFixed(2)}%
 - CISA KEV: ${vuln.kev_status ? "YES — actively exploited in the wild" : "No"}
-- CWE: ${vuln.cwe_ids.join(", ")}
-- MITRE Techniques: ${vuln.mitre_techniques.join(", ")}
+- CWE: ${(vuln.cwe_ids ?? []).join(", ") || "N/A"}
+- MITRE Techniques: ${(vuln.mitre_techniques ?? []).join(", ") || "N/A"}
 ${vuln.description ? `- Description: ${vuln.description}` : ""}
 
 ## Affected Asset
-- Type: ${asset.type}
+- Type: ${asset.type ?? asset.asset_type ?? "unknown"}
 - Hostname: ${asset.hostname}
 - Criticality: ${asset.criticality}
 - Tags: ${asset.tags?.join(", ") ?? "none"}
