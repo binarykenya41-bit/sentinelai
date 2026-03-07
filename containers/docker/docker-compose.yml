@@ -22,6 +22,8 @@ volumes:
   neo4j-logs:
   suricata-logs:
   ntopng-data:
+  dvwa-data:
+  webgoat-data:
 
 services:
   # ── Frontend ──────────────────────────────────────────────────────────────
@@ -181,3 +183,117 @@ services:
     networks:
       - sentinel-internal
     restart: unless-stopped
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # VULNERABLE TARGETS  (profile: vuln-targets)
+  # Intentionally vulnerable apps for exploit simulation testing.
+  # Start with: docker compose --profile vuln-targets up -d
+  # These are isolated on sentinel-sandbox — no external internet access.
+  # ────────────────────────────────────────────────────────────────────────────
+
+  # DVWA — Damn Vulnerable Web Application (SQLi, XSS, CSRF, File Upload, Brute Force)
+  # CVEs tested: generic SQLi / XSS / auth bypass patterns
+  # Source: https://github.com/digininja/DVWA
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    profiles:
+      - vuln-targets
+    environment:
+      - RECAPTCHA_PRIV_KEY=
+      - RECAPTCHA_PUB_KEY=
+    ports:
+      - "8100:80"
+    volumes:
+      - dvwa-data:/var/lib/mysql
+    networks:
+      - sentinel-sandbox
+    restart: unless-stopped
+    container_name: sentinel-dvwa
+
+  # OWASP Juice Shop — modern vulnerable Node.js app (XSS, SQLi, IDOR, SSRF, JWT)
+  # CVEs tested: injection, broken auth, insecure deserialization
+  # Source: https://github.com/juice-shop/juice-shop
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    profiles:
+      - vuln-targets
+    ports:
+      - "8101:3000"
+    networks:
+      - sentinel-sandbox
+    restart: unless-stopped
+    container_name: sentinel-juice-shop
+
+  # WebGoat — OWASP Java training app (SQLi, XSS, XXE, IDOR, Deserialization)
+  # Source: https://github.com/WebGoat/WebGoat
+  webgoat:
+    image: webgoat/webgoat:latest
+    profiles:
+      - vuln-targets
+    ports:
+      - "8102:8080"
+      - "9090:9090"
+    volumes:
+      - webgoat-data:/home/webgoat/.webgoat
+    networks:
+      - sentinel-sandbox
+    restart: unless-stopped
+    container_name: sentinel-webgoat
+
+  # Log4Shell vulnerable app — CVE-2021-44228 (CVSS 10.0)
+  # Apache Log4j 2.14.1 with JNDI injection via HTTP headers
+  # Source: https://github.com/christophetd/log4shell-vulnerable-app
+  log4shell-target:
+    image: ghcr.io/christophetd/log4shell-vulnerable-app:latest
+    profiles:
+      - vuln-targets
+    ports:
+      - "8103:8080"
+    networks:
+      - sentinel-sandbox
+    restart: unless-stopped
+    container_name: sentinel-log4shell
+
+  # Spring4Shell vulnerable app — CVE-2022-22965 (CVSS 9.8)
+  # Spring Framework RCE via data binding
+  # Source: https://github.com/reznok/Spring4Shell-POC
+  spring4shell-target:
+    image: vulfocus/spring-core-rce-2022-03-29:latest
+    profiles:
+      - vuln-targets
+    ports:
+      - "8104:8080"
+    networks:
+      - sentinel-sandbox
+    restart: unless-stopped
+    container_name: sentinel-spring4shell
+
+  # Metasploitable2 — classic vulnerable Linux (FTP, SSH, HTTP, SMB, MySQL)
+  # CVEs: CVE-2004-2687 (distcc), CVE-2010-1938 (ProFTPd), many more
+  # Source: https://github.com/rapid7/metasploitable3 (community image)
+  metasploitable:
+    image: tleemcjr/metasploitable2:latest
+    profiles:
+      - vuln-targets
+    ports:
+      - "8105:80"   # HTTP (Mutillidae, DVWA, phpMyAdmin)
+      - "2121:21"   # FTP
+      - "2222:22"   # SSH
+      - "3306:3306" # MySQL (no auth)
+    networks:
+      - sentinel-sandbox
+    restart: unless-stopped
+    container_name: sentinel-metasploitable
+
+  # bWAPP — buggy web app (700+ vulnerabilities, all OWASP categories)
+  # Source: http://www.itsecgames.com/
+  bwapp:
+    image: raesene/bwapp:latest
+    profiles:
+      - vuln-targets
+    ports:
+      - "8106:80"
+    networks:
+      - sentinel-sandbox
+    restart: unless-stopped
+    container_name: sentinel-bwapp
