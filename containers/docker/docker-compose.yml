@@ -1,0 +1,183 @@
+version: "3.9"
+
+# ─── Sentinel AI — Local Development Stack ────────────────────────────────────
+# Usage:
+#   cd containers/docker
+#   docker compose up -d
+#
+# Services: frontend, backend, postgres, redis, neo4j
+# Sandbox network is created separately by the simulation engine.
+
+networks:
+  sentinel-internal:
+    driver: bridge
+  sentinel-sandbox:
+    driver: bridge
+    internal: true   # No external routing — sandbox isolation
+
+volumes:
+  postgres-data:
+  redis-data:
+  neo4j-data:
+  neo4j-logs:
+  suricata-logs:
+  ntopng-data:
+
+services:
+  # ── Frontend ──────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../../
+      dockerfile: containers/docker/Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    env_file: ../../.env
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    networks:
+      - sentinel-internal
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── Backend API ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ../../
+      dockerfile: containers/docker/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    env_file: ../../.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SANDBOX_NETWORK=sentinel-sandbox
+    volumes:
+      # Mount Docker socket so backend can manage sandbox containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - sentinel-internal
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ── PostgreSQL (local dev only — use Supabase in production) ──────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sentinelai
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SUPABASE_DB_PASSWORD:-sentineldev}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - sentinel-internal
+    restart: unless-stopped
+
+  # ── Redis (CVE / session / graph cache) ───────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - sentinel-internal
+    restart: unless-stopped
+
+  # ── Neo4j (attack graph topology) ─────────────────────────────────────────
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-sentineldev}
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    ports:
+      - "7687:7687"   # Bolt
+      - "7474:7474"   # HTTP Browser
+    networks:
+      - sentinel-internal
+    restart: unless-stopped
+
+  # ── Scanner (run on demand — not always-on) ───────────────────────────────
+  scanner:
+    build:
+      context: ../../
+      dockerfile: containers/docker/Dockerfile.scanner
+    profiles:
+      - scanner  # docker compose --profile scanner run scanner trivy image ...
+    networks:
+      - sentinel-internal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: "no"
+
+  # ── Network Monitoring: Suricata (IDS/IPS) ────────────────────────────────
+  suricata:
+    image: jasonish/suricata:latest
+    profiles:
+      - network-monitoring
+    network_mode: host          # needs host networking to capture traffic
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+    command: -i eth0 --init-errors-fatal -v
+    volumes:
+      - suricata-logs:/var/log/suricata
+      - ./suricata.yaml:/etc/suricata/suricata.yaml:ro
+    restart: unless-stopped
+
+  # ── Network Monitoring: ntopng (traffic analysis) ─────────────────────────
+  ntopng:
+    image: ntop/ntopng:stable
+    profiles:
+      - network-monitoring
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    command: --interface=eth0 --http-port=3001 --community
+    volumes:
+      - ntopng-data:/var/lib/ntopng
+    restart: unless-stopped
+
+  # ── Infrastructure Monitoring: Zabbix Server ──────────────────────────────
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-latest
+    profiles:
+      - network-monitoring
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SUPABASE_DB_PASSWORD:-sentineldev}
+      POSTGRES_DB: zabbix
+    depends_on:
+      - postgres
+    ports:
+      - "10051:10051"
+    networks:
+      - sentinel-internal
+    restart: unless-stopped
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-latest
+    profiles:
+      - network-monitoring
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SUPABASE_DB_PASSWORD:-sentineldev}
+      POSTGRES_DB: zabbix
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: UTC
+    depends_on:
+      - zabbix-server
+    ports:
+      - "8080:8080"
+    networks:
+      - sentinel-internal
+    restart: unless-stopped

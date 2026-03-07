@@ -1,0 +1,58 @@
+---
+# Allow frontend → backend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: sentinelai
+spec:
+  podSelector:
+    matchLabels:
+      app: sentinel-backend
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: sentinel-frontend
+      ports:
+        - port: 8000
+
+---
+# Allow ingress controller → frontend + backend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-services
+  namespace: sentinelai
+spec:
+  podSelector:
+    matchLabels: {}
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 3000
+        - port: 8000
+
+---
+# Deny all other ingress by default (zero-trust)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: sentinelai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    # Allow egress to external APIs (NVD, EPSS, KEV, MITRE, Anthropic, Supabase)
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 53
+          protocol: UDP

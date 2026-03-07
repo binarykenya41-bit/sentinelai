@@ -1,0 +1,32 @@
+# ─── Build Stage ─────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY backend/package*.json ./
+RUN npm ci --ignore-scripts
+
+COPY backend/ .
+RUN npm run build
+
+# ─── Runtime Stage ───────────────────────────────────────────────────────────
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Install only production deps
+COPY backend/package*.json ./
+RUN npm ci --omit=dev --ignore-scripts
+
+# Copy compiled output
+COPY --from=builder /app/dist ./dist
+
+# Non-root user
+RUN addgroup -S sentinel && adduser -S sentinel -G sentinel
+USER sentinel
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD wget -qO- http://localhost:8000/health || exit 1
+
+CMD ["node", "dist/server.js"]

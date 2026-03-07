@@ -1,0 +1,36 @@
+# Sentinel AI — Vulnerability Scanner Image
+# Tools: Trivy, Grype, Semgrep, OWASP Dependency-Check
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl wget ca-certificates git python3 python3-pip openjdk-17-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Trivy (container + filesystem scanner) ───────────────────────────────────
+RUN wget -qO- https://github.com/aquasecurity/trivy/releases/download/v0.51.1/trivy_0.51.1_Linux-64bit.tar.gz \
+    | tar xz -C /usr/local/bin trivy
+
+# ── Grype (container vulnerability scanner) ──────────────────────────────────
+RUN curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+# ── Semgrep (SAST) ───────────────────────────────────────────────────────────
+RUN pip3 install --no-cache-dir semgrep
+
+# ── OWASP Dependency-Check ───────────────────────────────────────────────────
+ARG DC_VERSION=9.2.0
+RUN wget -qO /tmp/dc.zip https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}-release.zip \
+    && unzip -q /tmp/dc.zip -d /opt && rm /tmp/dc.zip \
+    && ln -s /opt/dependency-check/bin/dependency-check.sh /usr/local/bin/dependency-check
+
+# ── Scanner entrypoint script ─────────────────────────────────────────────────
+COPY containers/docker/scanner-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Non-root user
+RUN useradd -ms /bin/bash scanner
+USER scanner
+
+WORKDIR /scan
+ENTRYPOINT ["/entrypoint.sh"]
