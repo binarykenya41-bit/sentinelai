@@ -1,10 +1,17 @@
-# v0 runtime files
-__v0_runtime_loader.js
-__v0_devtools.tsx
-__v0_jsx-dev-runtime.ts
+# Environment variables - NEVER commit these
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+frontend/.env
+database/.env
 
-# Common ignores
+# Dependencies
 node_modules/
+
+# Build output
 .next/
-.env*.local
+
+# OS
 .DS_Store
