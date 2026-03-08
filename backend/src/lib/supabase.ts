@@ -11,3 +11,7 @@ if (!url || !serviceKey) {
 export const supabase = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
+
+
+
+

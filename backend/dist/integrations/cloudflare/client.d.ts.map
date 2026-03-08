@@ -1,0 +1,1 @@
+{"version":3,"file":"client.d.ts","sourceRoot":"","sources":["../../../src/integrations/cloudflare/client.ts"],"names":[],"mappings":"AAIA,wBAAsB,OAAO,CAAC,CAAC,EAAE,IAAI,EAAE,MAAM,EAAE,OAAO,CAAC,EAAE,WAAW,GAAG,OAAO,CAAC,CAAC,CAAC,CAoBhF;AAGD,wBAAsB,SAAS,IAAI,OAAO,CAAC;IAAE,EAAE,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,MAAM,CAAC;IAAC,MAAM,EAAE,MAAM,CAAA;CAAE,EAAE,CAAC,CAGzF"}

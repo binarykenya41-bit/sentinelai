@@ -13,7 +13,9 @@ networks:
     driver: bridge
   sentinel-sandbox:
     driver: bridge
-    internal: true   # No external routing — sandbox isolation
+    internal: true   # No external routing — sandbox isolation (exploit tool containers)
+  sentinel-company:
+    driver: bridge   # Company-infra targets — port bindings accessible from host
 
 volumes:
   postgres-data:
@@ -24,6 +26,10 @@ volumes:
   ntopng-data:
   dvwa-data:
   webgoat-data:
+  gitlab-config:
+  gitlab-logs:
+  gitlab-data:
+  erpnext-bench:   # persists bench/sites across container restarts
 
 services:
   # ── Frontend ──────────────────────────────────────────────────────────────
@@ -297,3 +303,256 @@ services:
       - sentinel-sandbox
     restart: unless-stopped
     container_name: sentinel-bwapp
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # COMPANY INFRASTRUCTURE CLONES  (profile: company-infra)
+  # Vulnerable versions of the actual company stack for exploit simulation.
+  # Maps to the Sentinel infra-scan service catalog.
+  # Start with: docker compose --profile company-infra up -d
+  # All services are isolated on sentinel-sandbox network.
+  #
+  # IMPORTANT: These are intentionally vulnerable. Do NOT expose externally.
+  # ────────────────────────────────────────────────────────────────────────────
+
+  # ── GitLab CE 16.0.0 — CVE-2023-7028 (CVSS 10.0, KEV) ─────────────────────
+  # Account takeover via password reset email hijacking — no auth required
+  # Exploit: exploit-files/tools/gitlab/cve_2023_7028.py
+  # Admin UI: http://localhost:8200 (initial password in /etc/gitlab/initial_root_password)
+  gitlab-vuln:
+    image: gitlab/gitlab-ce:16.0.0-ce.0
+    profiles:
+      - company-infra
+    hostname: gitlab.company.local
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:8200'
+        gitlab_rails['initial_root_password'] = 'SentinelDemo123!'
+        gitlab_rails['smtp_enable'] = false
+        nginx['listen_port'] = 80
+    ports:
+      - "8200:80"
+    volumes:
+      - gitlab-config:/etc/gitlab
+      - gitlab-logs:/var/log/gitlab
+      - gitlab-data:/var/opt/gitlab
+    networks:
+      - sentinel-company
+    shm_size: "256m"
+    restart: unless-stopped
+    container_name: sentinel-gitlab
+
+  # ── WordPress 6.1.0 — CVE-2024-6386 WPML SSTI, CVE-2024-4439 XSS ──────────
+  # WPML plugin SSTI (CVSS 9.9) + Core XSS via Avatar block (CVSS 7.2)
+  # Exploit: exploit-files/tools/wordpress/wp_enum.py + wp_ssti.py
+  # Admin UI: http://localhost:8201/wp-admin (admin / SentinelDemo123!)
+  wordpress-vuln:
+    image: wordpress:6.1.0-php8.1-apache
+    profiles:
+      - company-infra
+    environment:
+      WORDPRESS_DB_HOST: wordpress-db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_TABLE_PREFIX: wp_
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG', true);
+        define('FORCE_SSL_ADMIN', false);
+    ports:
+      - "8201:80"
+    depends_on:
+      - wordpress-db
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-wordpress
+
+  wordpress-db:
+    image: mysql:8.0
+    profiles:
+      - company-infra
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-wordpress-db
+
+  # ── ERPNext / Frappe — CVE-2024-25136 SQLi, CVE-2023-46127 Stored XSS ──────
+  # Frappe SQL injection in report builder (CVSS 9.1) — full DB dump possible
+  # Exploit: exploit-files/tools/erpnext/cve_2024_25136.py
+  #
+  # ERPNext requires MariaDB + Redis. We run it as a standalone mock that
+  # exposes the vulnerable Frappe API surface for exploit simulation.
+  # Admin: http://localhost:8202  (admin / admin)
+  #
+  # !! Full ERPNext stack setup: https://github.com/frappe/frappe_docker
+  # For the demo we use bitnami/erpnext which bundles its dependencies.
+  erpnext-db:
+    image: mariadb:10.6
+    profiles:
+      - company-infra
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: erpnext
+      MYSQL_USER: frappe
+      MYSQL_PASSWORD: frappe
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-erpnext-db
+
+  erpnext-redis:
+    image: redis:6-alpine
+    profiles:
+      - company-infra
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-erpnext-redis
+
+  erpnext-vuln:
+    image: frappe/erpnext:v15.0.0
+    profiles:
+      - company-infra
+    depends_on:
+      - erpnext-db
+      - erpnext-redis
+    # sentinel_app.py forces site=erp.company.local regardless of Host header
+    # so http://localhost:8202 and the Codespaces URL both work in the browser.
+    # host_name in site_config.json controls absolute URLs (links, redirects).
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        printf 'import frappe.app as _a\n_a._site="erp.company.local"\n_a._sites_path="."\napplication=_a.application\n' \
+          > /home/frappe/frappe-bench/sites/sentinel_app.py
+        exec /home/frappe/frappe-bench/env/bin/gunicorn \
+          --chdir=/home/frappe/frappe-bench/sites \
+          --bind=0.0.0.0:8000 \
+          --threads=4 --workers=2 --worker-class=gthread \
+          --worker-tmp-dir=/dev/shm --timeout=120 --preload \
+          sentinel_app:application
+    environment:
+      DB_HOST: erpnext-db
+      DB_PORT: "3306"
+      REDIS_CACHE: erpnext-redis:6379
+      REDIS_QUEUE: erpnext-redis:6379
+      REDIS_SOCKETIO: erpnext-redis:6379
+    volumes:
+      - erpnext-bench:/home/frappe/frappe-bench/sites  # persist site data
+    ports:
+      - "8202:8000"
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-erpnext
+
+  # ── Keycloak 23.0.0 — CVE-2024-1132 path traversal, CVE-2023-6927 open redirect ──
+  # Path traversal via redirect_uri bypass in OAuth2 flow (CVSS 8.1)
+  # Exploit: exploit-files/tools/keycloak/cve_2024_1132.py
+  # Admin UI: http://localhost:8203/admin (admin / SentinelDemo123!)
+  keycloak-vuln:
+    image: quay.io/keycloak/keycloak:23.0.0
+    profiles:
+      - company-infra
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: SentinelDemo123!
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+    ports:
+      - "8203:8080"
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-keycloak
+
+  # ── PostgreSQL 15.0 — CVE-2024-0985 privilege escalation ───────────────────
+  # Superuser privesc via ALTER TABLE crafted SQL (CVSS 8.0)
+  # Exploit: exploit-files/tools/postgresql/pg_auth_check.py
+  # Connection: localhost:8204 user=postgres pass=postgres
+  postgres-vuln:
+    image: postgres:15.0-alpine
+    profiles:
+      - company-infra
+    environment:
+      POSTGRES_DB: company_erp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres       # weak default for demo
+      POSTGRES_HOST_AUTH_METHOD: trust  # trust auth — no password required from sandbox
+    ports:
+      - "8204:5432"
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-postgres-vuln
+
+  # ── Grafana 8.3.0 — CVE-2021-43798 path traversal (CVSS 7.5, KEV) ─────────
+  # Unauthenticated arbitrary file read via plugin directory traversal
+  # Exploit: exploit-files/tools/grafana/cve_2021_43798.py
+  # UI: http://localhost:8205 (admin / admin — default, not changed)
+  grafana-vuln:
+    image: grafana/grafana:8.3.0
+    profiles:
+      - company-infra
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin      # default — not rotated
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_PATHS_PLUGINS: /var/lib/grafana/plugins
+    ports:
+      - "8205:3000"
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-grafana-vuln
+
+  # ── Prometheus 2.5.0 — CVE-2019-3826 stored XSS ────────────────────────────
+  # Prometheus web UI with no auth (metrics exposure) + stored XSS in alert labels
+  # Exploit: exploit-files/tools/prometheus/cve_2019_3826.py
+  # UI: http://localhost:8206
+  prometheus-vuln:
+    image: prom/prometheus:v2.5.0
+    profiles:
+      - company-infra
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-lifecycle"
+    ports:
+      - "8206:9090"
+    networks:
+      - sentinel-company
+    restart: unless-stopped
+    container_name: sentinel-prometheus-vuln
+
+  # ── Netdata — Infrastructure Monitoring (Zabbix alternative) ────────────────
+  # Replaces Zabbix: no NET_ADMIN needed, Prometheus-compatible metrics endpoint,
+  # pre-built Grafana dashboards, monitors processes + Docker containers + host.
+  # UI: http://localhost:8207  Metrics: http://localhost:8207/api/v1/allmetrics?format=prometheus
+  netdata:
+    image: netdata/netdata:stable
+    profiles:
+      - network-monitoring
+    hostname: sentinel-netdata
+    cap_add:
+      - SYS_PTRACE          # needed to read /proc/<pid>/ of other processes
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - NETDATA_CLAIM_TOKEN=  # leave blank for local-only mode
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8207:19999"
+    networks:
+      - sentinel-internal
+    restart: unless-stopped
+    container_name: sentinel-netdata

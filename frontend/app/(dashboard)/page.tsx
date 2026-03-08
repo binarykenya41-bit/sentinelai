@@ -11,47 +11,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   ScanLine, Plus, FileBarChart2, CheckCircle, Circle, XCircle,
   Cpu, Cloud, Container, Monitor, Wifi, Server, Activity,
   AlertTriangle, TrendingUp, Shield, Network, Clock,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useApi } from "@/hooks/use-api"
+import { dashboardApi, assetsApi, integrationsApi, type ComplianceOverview, type ActivityEntry } from "@/lib/api-client"
 
-const integrationStatus = [
-  { name: "Splunk SIEM", status: "Connected", type: "SIEM", lastSync: "2m ago" },
-  { name: "AWS Security Hub", status: "Connected", type: "Cloud", lastSync: "5m ago" },
-  { name: "Cisco DNA Center", status: "Connected", type: "Network", lastSync: "1m ago" },
-  { name: "Jamf MDM", status: "Connected", type: "Endpoint", lastSync: "8m ago" },
-  { name: "Zabbix Monitor", status: "Warning", type: "Monitoring", lastSync: "15m ago" },
-  { name: "FortiManager", status: "Disconnected", type: "Network", lastSync: "2h ago" },
-]
-
-const digitalTwinStats = [
-  { label: "Cloud VMs", count: 142, icon: Cloud, color: "text-chart-2" },
-  { label: "Network Devices", count: 38, icon: Wifi, color: "text-chart-1" },
-  { label: "Endpoints", count: 897, icon: Monitor, color: "text-primary" },
-  { label: "Containers", count: 214, icon: Container, color: "text-chart-3" },
-  { label: "Databases", count: 29, icon: Server, color: "text-warning" },
-  { label: "Applications", count: 67, icon: Cpu, color: "text-success" },
-]
-
-const complianceFrameworks = [
-  { name: "ISO 27001", score: 72, passing: 18, total: 25 },
-  { name: "SOC 2", score: 61, passing: 11, total: 18 },
-  { name: "NIST CSF", score: 68, passing: 34, total: 50 },
-  { name: "PCI DSS", score: 55, passing: 17, total: 31 },
-]
-
-const recentActivity = [
-  { time: "02:18 UTC", event: "Exploit simulation SIM-001 completed — RCE confirmed on web-prod-01", type: "exploit" },
-  { time: "02:14 UTC", event: "Vulnerability scan completed — 12 critical findings across 1,284 assets", type: "scan" },
-  { time: "02:10 UTC", event: "Patch PR opened for CVE-2026-21001 (OpenSSL 3.1.5)", type: "patch" },
-  { time: "01:58 UTC", event: "New CVE ingested: CVE-2026-21004 (Critical, CVSS 9.1)", type: "threat" },
-  { time: "01:45 UTC", event: "Splunk SIEM: 847 security events processed in last hour", type: "monitoring" },
-  { time: "01:30 UTC", event: "Compliance check: ISO 27001 A.8.8 control status updated — Failing", type: "compliance" },
-  { time: "01:15 UTC", event: "Digital twin sync: 1,387 infrastructure nodes updated", type: "sync" },
-]
+const FALLBACK_COMPLIANCE: ComplianceOverview[] = []
+const FALLBACK_ACTIVITY: ActivityEntry[] = []
 
 function activityColor(type: string) {
   switch (type) {
@@ -73,17 +44,59 @@ function integrationStatusIcon(status: string) {
   }
 }
 
+function activityEventLabel(action: string) {
+  const map: Record<string, string> = {
+    exploit_simulation_completed: "Exploit simulation completed",
+    cve_sync_completed: "CVE sync completed",
+    patch_pr_created: "Patch PR created",
+    vulnerability_escalated: "Vulnerability escalated",
+    integration_connected: "Integration connected",
+    asset_sync_completed: "Asset sync completed",
+    compliance_report_generated: "Compliance report generated",
+    threat_feed_updated: "Threat feed updated",
+    vulnerability_status_updated: "Vulnerability status updated",
+  }
+  return map[action] ?? action.replace(/_/g, " ")
+}
+
+function activityEventType(action: string) {
+  if (action.includes("exploit") || action.includes("simulation")) return "exploit"
+  if (action.includes("patch")) return "patch"
+  if (action.includes("cve") || action.includes("threat") || action.includes("vuln")) return "threat"
+  if (action.includes("compliance")) return "compliance"
+  if (action.includes("sync") || action.includes("integration") || action.includes("asset")) return "monitoring"
+  return "scan"
+}
+
 export default function DashboardPage() {
   const [scanning, setScanning] = useState(false)
+
+  const { data: compliance, loading: compLoading } = useApi(() => dashboardApi.compliance(), [])
+  const { data: activity, loading: actLoading } = useApi(() => dashboardApi.activity(10), [])
+  const { data: assetStats, loading: assetsLoading } = useApi(() => assetsApi.stats(), [])
+  const { data: integrationStatus, loading: intLoading } = useApi(() => integrationsApi.status(), [])
+
+  const complianceData: ComplianceOverview[] = compliance ?? FALLBACK_COMPLIANCE
+  const activityData: ActivityEntry[] = activity ?? FALLBACK_ACTIVITY
 
   const handleScanNow = () => {
     setScanning(true)
     toast.loading("Initiating vulnerability scan across all assets...", { duration: 2500 })
     setTimeout(() => {
-      toast.success("Scan queued — 1,284 assets targeted")
+      toast.success(`Scan queued — ${assetStats?.total ?? 50} assets targeted`)
       setScanning(false)
     }, 2600)
   }
+
+  const byType = assetStats?.by_type ?? {}
+  const digitalTwinItems = [
+    { label: "Cloud Resources", count: (byType["cloud_resource"] ?? 0) + (byType["server"] ?? 0), icon: Cloud, color: "text-chart-2" },
+    { label: "Network Devices", count: byType["network_device"] ?? 0, icon: Wifi, color: "text-chart-1" },
+    { label: "Endpoints", count: byType["endpoint"] ?? 0, icon: Monitor, color: "text-primary" },
+    { label: "Containers", count: byType["container"] ?? 0, icon: Container, color: "text-chart-3" },
+    { label: "Databases", count: byType["database"] ?? 0, icon: Server, color: "text-warning" },
+    { label: "Total Assets", count: assetStats?.total ?? 0, icon: Cpu, color: "text-success" },
+  ]
 
   return (
     <div className="flex flex-col">
@@ -134,19 +147,26 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Digital Twin Infrastructure Model
               </CardTitle>
-              <Badge variant="outline" className="ml-auto bg-primary/10 text-primary border-primary/20">1,387 Nodes</Badge>
+              <Badge variant="outline" className="ml-auto bg-primary/10 text-primary border-primary/20">
+                {assetStats?.total ?? "…"} Nodes
+              </Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-3 lg:grid-cols-6">
-              {digitalTwinStats.map((stat) => (
-                <div key={stat.label} className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-secondary/50 p-3 text-center">
-                  <stat.icon className={`h-5 w-5 ${stat.color}`} />
-                  <span className={`text-xl font-bold ${stat.color}`}>{stat.count}</span>
-                  <span className="text-[10px] text-muted-foreground">{stat.label}</span>
+            {assetsLoading
+              ? <div className="grid grid-cols-3 gap-3 lg:grid-cols-6">{[0,1,2,3,4,5].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}</div>
+              : (
+                <div className="grid grid-cols-3 gap-3 lg:grid-cols-6">
+                  {digitalTwinItems.map((stat) => (
+                    <div key={stat.label} className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-secondary/50 p-3 text-center">
+                      <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                      <span className={`text-xl font-bold ${stat.color}`}>{stat.count}</span>
+                      <span className="text-[10px] text-muted-foreground">{stat.label}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )
+            }
           </CardContent>
         </Card>
 
@@ -178,14 +198,20 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              {complianceFrameworks.map((fw) => (
-                <div key={fw.name} className="flex items-center gap-3">
-                  <span className="w-20 text-xs font-medium text-card-foreground">{fw.name}</span>
-                  <Progress value={fw.score} className="h-1.5 flex-1 bg-secondary [&>div]:bg-primary" />
-                  <span className="font-mono text-xs text-muted-foreground">{fw.passing}/{fw.total}</span>
-                  <span className={`font-mono text-xs font-bold ${fw.score >= 70 ? "text-success" : fw.score >= 55 ? "text-warning" : "text-destructive"}`}>{fw.score}%</span>
-                </div>
-              ))}
+              {compLoading
+                ? [0,1,2,3].map((i) => <Skeleton key={i} className="h-5 w-full" />)
+                : complianceData.map((fw) => {
+                  const name = fw.framework.toUpperCase().replace("ISO27001","ISO 27001").replace("SOC2","SOC 2").replace("PCIDSS","PCI DSS")
+                  return (
+                    <div key={fw.framework} className="flex items-center gap-3">
+                      <span className="w-20 text-xs font-medium text-card-foreground">{name}</span>
+                      <Progress value={fw.score} className="h-1.5 flex-1 bg-secondary [&>div]:bg-primary" />
+                      <span className="font-mono text-xs text-muted-foreground">{fw.passing}/{fw.total_controls}</span>
+                      <span className={`font-mono text-xs font-bold ${fw.score >= 70 ? "text-success" : fw.score >= 55 ? "text-warning" : "text-destructive"}`}>{fw.score}%</span>
+                    </div>
+                  )
+                })
+              }
             </CardContent>
           </Card>
 
@@ -205,16 +231,25 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
-              {integrationStatus.map((int) => (
-                <div key={int.name} className="flex items-center justify-between rounded-md border border-border bg-secondary/50 px-3 py-2">
+              {intLoading
+                ? [0,1,2,3,4,5].map((i) => <Skeleton key={i} className="h-9 w-full rounded-md" />)
+                : (integrationStatus ?? []).map((int) => (
+                <div key={int.service_id} className="flex items-center justify-between rounded-md border border-border bg-secondary/50 px-3 py-2">
                   <div className="flex items-center gap-2">
                     {integrationStatusIcon(int.status)}
                     <span className="text-xs font-medium text-card-foreground">{int.name}</span>
-                    <Badge variant="outline" className="border-border bg-secondary text-muted-foreground text-[10px]">{int.type}</Badge>
+                    <Badge variant="outline" className="border-border bg-secondary text-muted-foreground text-[10px]">{int.category}</Badge>
                   </div>
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Clock className="h-3 w-3" /> {int.lastSync}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {int.vuln_count > 0 && (
+                      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[9px]">
+                        {int.vuln_count} CVEs
+                      </Badge>
+                    )}
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="h-3 w-3" /> {int.lastSync}
+                    </span>
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -230,13 +265,28 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-0">
-            {recentActivity.map((item, i) => (
-              <div key={i} className="flex items-start gap-4 border-b border-border/50 py-2.5 last:border-0">
-                <span className="w-16 shrink-0 font-mono text-[10px] text-muted-foreground pt-0.5">{item.time}</span>
-                <div className="h-1.5 w-1.5 mt-1.5 shrink-0 rounded-full bg-primary" />
-                <span className={`text-xs ${activityColor(item.type)}`}>{item.event}</span>
-              </div>
-            ))}
+            {actLoading
+              ? [0,1,2,3,4].map((i) => <Skeleton key={i} className="h-8 w-full my-1" />)
+              : activityData.map((item) => {
+                const type = activityEventType(item.action)
+                const timeStr = new Date(item.logged_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC"
+                const payload = item.payload as Record<string, unknown> | null
+                const detail = payload
+                  ? Object.entries(payload).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(", ")
+                  : ""
+                return (
+                  <div key={item.log_id} className="flex items-start gap-4 border-b border-border/50 py-2.5 last:border-0">
+                    <span className="w-16 shrink-0 font-mono text-[10px] text-muted-foreground pt-0.5">{timeStr}</span>
+                    <div className="h-1.5 w-1.5 mt-1.5 shrink-0 rounded-full bg-primary" />
+                    <div className="flex flex-col gap-0.5">
+                      <span className={`text-xs ${activityColor(type)}`}>{activityEventLabel(item.action)}</span>
+                      {detail && <span className="text-[10px] text-muted-foreground">{detail}</span>}
+                    </div>
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{item.actor}</span>
+                  </div>
+                )
+              })
+            }
           </CardContent>
         </Card>
 

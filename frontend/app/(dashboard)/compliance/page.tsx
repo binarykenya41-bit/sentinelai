@@ -7,25 +7,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { ScanLine, Plus, X } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ScanLine, Plus, X, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
+import { useApi } from "@/hooks/use-api"
+import { dashboardApi, type ComplianceOverview } from "@/lib/api-client"
 
-const frameworks = [
-  { name: "ISO 27001", score: 82, controls: 114, passing: 94, failing: 12, inProgress: 8 },
-  { name: "SOC 2 Type II", score: 76, controls: 64, passing: 49, failing: 8, inProgress: 7 },
-  { name: "PCI-DSS v4.0", score: 69, controls: 78, passing: 54, failing: 15, inProgress: 9 },
-]
+interface ComplianceControl {
+  id: string
+  control: string
+  framework: string
+  status: string
+  progress: number
+  cve_ids: string[]
+}
 
-const controlsList = [
-  { id: "a-8-8", control: "A.8.8 - Management of technical vulnerabilities", framework: "ISO 27001", vulns: 5, status: "Failing", progress: 45 },
-  { id: "a-8-9", control: "A.8.9 - Configuration management", framework: "ISO 27001", vulns: 2, status: "In Progress", progress: 70 },
-  { id: "cc6-1", control: "CC6.1 - Logical and Physical Access Controls", framework: "SOC 2", vulns: 3, status: "Failing", progress: 35 },
-  { id: "cc7-2", control: "CC7.2 - Monitoring of System Components", framework: "SOC 2", vulns: 1, status: "Passing", progress: 100 },
-  { id: "6-2-4", control: "6.2.4 - Software on all system components is protected", framework: "PCI-DSS", vulns: 8, status: "Failing", progress: 25 },
-  { id: "6-3-1", control: "6.3.1 - Security vulnerabilities identified and managed", framework: "PCI-DSS", vulns: 4, status: "In Progress", progress: 60 },
-  { id: "11-3-1", control: "11.3.1 - Internal vulnerability scans performed", framework: "PCI-DSS", vulns: 0, status: "Passing", progress: 100 },
-  { id: "a-12-6-1", control: "A.12.6.1 - Management of technical vulnerabilities", framework: "ISO 27001", vulns: 3, status: "In Progress", progress: 55 },
-]
+const FALLBACK_FRAMEWORKS: ComplianceOverview[] = []
+
+function fwDisplayName(key: string) {
+  const map: Record<string, string> = {
+    iso27001: "ISO 27001",
+    soc2: "SOC 2 Type II",
+    pcidss: "PCI-DSS v4.0",
+  }
+  return map[key.toLowerCase()] ?? key.toUpperCase()
+}
 
 function scoreColor(score: number) {
   if (score >= 80) return "text-success"
@@ -46,6 +52,23 @@ export default function CompliancePage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ id: "", control: "", framework: "ISO 27001", owner: "", dueDate: "" })
 
+  const { data: complianceData, loading: compLoading, error: compError } = useApi(
+    () => dashboardApi.compliance(),
+    []
+  )
+
+  const { data: controlsData, loading: ctrlLoading } = useApi(
+    () => fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/dashboard/compliance/controls`)
+      .then((r) => r.json() as Promise<ComplianceControl[]>),
+    []
+  )
+
+  const frameworks: ComplianceOverview[] = (complianceData && complianceData.length > 0)
+    ? complianceData
+    : FALLBACK_FRAMEWORKS
+
+  const controlsList: ComplianceControl[] = controlsData ?? []
+
   const handleScan = () => {
     toast.loading("Running compliance scan across all frameworks...", { duration: 2000 })
     setTimeout(() => toast.success("Compliance scan complete", { description: "256 controls evaluated" }), 2100)
@@ -65,25 +88,48 @@ export default function CompliancePage() {
     <div className="flex flex-col">
       <AppHeader title="Compliance" />
       <div className="flex flex-col gap-6 p-6">
+
+        {compError && (
+          <div className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/10 p-3 text-xs text-warning">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Backend unreachable — showing last known data. {compError}
+          </div>
+        )}
+
         {/* Framework score cards */}
         <div className="grid grid-cols-3 gap-4">
-          {frameworks.map((fw) => (
-            <Card key={fw.name} className="border-border bg-card">
-              <CardContent className="flex flex-col gap-4 p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-card-foreground">{fw.name}</span>
-                  <span className={`text-2xl font-bold ${scoreColor(fw.score)}`}>{fw.score}%</span>
-                </div>
-                <Progress value={fw.score} className="h-1.5 bg-secondary [&>div]:bg-primary" />
-                <div className="flex justify-between text-xs">
-                  <span className="text-success">{fw.passing} passing</span>
-                  <span className="text-warning">{fw.inProgress} in progress</span>
-                  <span className="text-destructive">{fw.failing} failing</span>
-                </div>
-                <span className="text-xs text-muted-foreground">{fw.controls} total controls</span>
-              </CardContent>
-            </Card>
-          ))}
+          {compLoading
+            ? [0, 1, 2].map((i) => (
+                <Card key={i} className="border-border bg-card">
+                  <CardContent className="flex flex-col gap-4 p-5">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-1.5 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                  </CardContent>
+                </Card>
+              ))
+            : frameworks.map((fw) => {
+                const name = fwDisplayName(fw.framework)
+                const inProgress = fw.total_controls - fw.passing - fw.failing
+                return (
+                  <Card key={fw.framework} className="border-border bg-card">
+                    <CardContent className="flex flex-col gap-4 p-5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-card-foreground">{name}</span>
+                        <span className={`text-2xl font-bold ${scoreColor(fw.score)}`}>{fw.score}%</span>
+                      </div>
+                      <Progress value={fw.score} className="h-1.5 bg-secondary [&>div]:bg-primary" />
+                      <div className="flex justify-between text-xs">
+                        <span className="text-success">{fw.passing} passing</span>
+                        <span className="text-warning">{Math.max(0, inProgress)} in progress</span>
+                        <span className="text-destructive">{fw.failing} failing</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{fw.total_controls} total controls</span>
+                    </CardContent>
+                  </Card>
+                )
+              })
+          }
         </div>
 
         {/* Add Control Form */}
@@ -172,39 +218,46 @@ export default function CompliancePage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Control</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Framework</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Related Vulns</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Remediation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {controlsList.map((c, i) => (
-                  <tr key={i} className="border-b border-border last:border-0 hover:bg-secondary/50">
-                    <td className="px-4 py-3 text-xs text-card-foreground">
-                      <Link href={`/compliance/${c.id}`} className="hover:text-primary hover:underline transition-colors">
-                        {c.control}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{c.framework}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-card-foreground">{c.vulns}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className={statusBadge(c.status)}>{c.status}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Progress value={c.progress} className="h-1.5 w-20 bg-secondary [&>div]:bg-primary" />
-                        <span className="font-mono text-xs text-muted-foreground">{c.progress}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {ctrlLoading
+              ? <div className="flex flex-col gap-2 p-4">{[0,1,2,3,4].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+              : controlsList.length === 0
+                ? <p className="p-4 text-xs text-muted-foreground">No control data — run a compliance scan or apply DB migration.</p>
+                : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Control</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Framework</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">CVEs</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Remediation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {controlsList.map((c, i) => (
+                        <tr key={i} className="border-b border-border last:border-0 hover:bg-secondary/50">
+                          <td className="px-4 py-3 text-xs text-card-foreground">
+                            <Link href={`/compliance/${encodeURIComponent(c.id)}`} className="hover:text-primary hover:underline transition-colors">
+                              {c.control}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{c.framework}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-card-foreground">{c.cve_ids.length}</td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline" className={statusBadge(c.status)}>{c.status}</Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Progress value={c.progress} className="h-1.5 w-20 bg-secondary [&>div]:bg-primary" />
+                              <span className="font-mono text-xs text-muted-foreground">{c.progress}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+            }
           </CardContent>
         </Card>
       </div>

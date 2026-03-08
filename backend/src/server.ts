@@ -11,6 +11,11 @@ import { simulationRoutes } from "./routes/simulation.js"
 import { networkRoutes } from "./routes/network.js"
 import { attackGraphRoutes } from "./routes/attack-graph.js"
 import { syncRoutes } from "./routes/sync.js"
+import { assetsRoutes } from "./routes/assets.js"
+import { dashboardRoutes } from "./routes/dashboard.js"
+import { vulnerabilitiesRoutes } from "./routes/vulnerabilities.js"
+import { patchRoutes } from "./routes/patches.js"
+import { infraScanRoutes } from "./routes/infra-scan.js"
 import { startScheduler } from "./services/scheduler.js"
 
 const PORT = parseInt(process.env.BACKEND_PORT ?? "8000")
@@ -67,6 +72,21 @@ await app.register(attackGraphRoutes)
 
 // ---- CVE Sync, Threat Feed & Auto-Simulation Scheduler ----
 await app.register(syncRoutes)
+
+// ---- Assets (digital twin inventory) ----
+await app.register(assetsRoutes)
+
+// ---- Dashboard aggregated stats ----
+await app.register(dashboardRoutes)
+
+// ---- Vulnerabilities (DB-backed list + stats) ----
+await app.register(vulnerabilitiesRoutes)
+
+// ---- Patch records ----
+await app.register(patchRoutes)
+
+// ---- Infrastructure Scanner (GitLab / WordPress / ERPNext / Keycloak / PG / Grafana) ----
+await app.register(infraScanRoutes)
 
 // ---- Global error handler ----
 app.setErrorHandler((err, _req, reply) => {

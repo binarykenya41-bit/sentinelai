@@ -7,7 +7,7 @@ import {
   Globe, FileCheck, FileText, Settings, Shield, Cpu,
   Wifi, Cloud, Container, Monitor, Users, Code2,
   Swords, Mail, Bug, Eye, Zap, GitMerge, BarChart3,
-  AlertOctagon, ChevronDown, Server, Box, Layers, GitBranch,
+  AlertOctagon, ChevronDown, Server, Box, Layers, GitBranch, ScanLine,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
@@ -44,6 +44,7 @@ const navGroups: NavGroup[] = [
   {
     group: "Infrastructure",
     items: [
+      { label: "Infra Scanner", href: "/infra-scan", icon: ScanLine },
       { label: "Infrastructure", href: "/infrastructure", icon: Server },
       { label: "Digital Twin", href: "/digital-twin", icon: Layers },
       { label: "API Connections", href: "/api-connections", icon: GitBranch },

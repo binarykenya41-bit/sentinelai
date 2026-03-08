@@ -25,6 +25,36 @@ export async function attackGraphRoutes(app: FastifyInstance) {
     return reply.send(graph)
   })
 
+  // POST /api/attack-graph/build-auto — build graph from all open vulnerabilities in DB
+  app.post("/api/attack-graph/build-auto", async (_req, reply) => {
+    const { data: vulns, error } = await supabase
+      .from("vulnerabilities")
+      .select("vuln_id, cve_id, affected_assets")
+      .in("remediation_status", ["open", "in_progress"])
+      .order("cvss_v3", { ascending: false })
+      .limit(20)
+
+    if (error) return reply.status(500).send({ error: error.message })
+    if (!vulns?.length) {
+      // Return empty graph instead of 404
+      return reply.send({ nodes: [], edges: [], tactic_flow: [], meta: { cve_count: 0, technique_count: 0, tactic_count: 0, generated_at: new Date().toISOString() } })
+    }
+
+    const cveIds = [...new Set(vulns.map((v) => v.cve_id).filter(Boolean))]
+    const assetIdSet = new Set(vulns.flatMap((v) => v.affected_assets ?? []))
+
+    const { data: assets } = await supabase
+      .from("assets")
+      .select("asset_id, hostname, type")
+      .in("asset_id", Array.from(assetIdSet))
+
+    const graph = await buildCveAttackGraph(
+      cveIds,
+      (assets ?? []).map((a) => ({ id: a.asset_id, hostname: a.hostname ?? "", type: a.type ?? "" }))
+    )
+    return reply.send(graph)
+  })
+
   // POST /api/attack-graph/build-from-vuln — build graph from Supabase vuln IDs
   app.post<{ Body: { vuln_ids: string[] } }>(
     "/api/attack-graph/build-from-vuln",

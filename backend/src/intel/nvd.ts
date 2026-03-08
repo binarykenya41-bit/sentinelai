@@ -50,8 +50,13 @@ export async function searchCves(params: {
   if (params.keyword) nvdParams.keywordSearch = params.keyword
   if (params.cweId) nvdParams.cweId = params.cweId
   if (params.cvssV3SeverityMin) nvdParams.cvssV3Severity = params.cvssV3SeverityMin
-  if (params.pubStartDate) nvdParams.pubStartDate = params.pubStartDate
-  if (params.pubEndDate) nvdParams.pubEndDate = params.pubEndDate
+  if (params.pubStartDate) {
+    nvdParams.pubStartDate = params.pubStartDate
+    // NVD requires pubEndDate when pubStartDate is set; default to now (capped at 2025-12-31)
+    nvdParams.pubEndDate = params.pubEndDate
+      ?? new Date(Math.min(Date.now(), new Date("2025-12-31T23:59:59.000Z").getTime()))
+          .toISOString().replace("Z", "+00:00")
+  }
   nvdParams.resultsPerPage = params.resultsPerPage ?? 20
   nvdParams.startIndex = params.startIndex ?? 0
 

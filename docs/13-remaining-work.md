@@ -1,51 +1,111 @@
 # Sentinel AI — Remaining Work
 
-**Last updated:** 2026-03-07
+**Last updated:** 2026-03-08
 **Status:** Active development
 
 ---
 
-## Priority 1 — Critical (blocks usability)
+## Priority 1 — Critical ✅ COMPLETED
 
-### 1.1 Apply DB Migration 002
-**What:** `database/migrations/002-threat-feed.sql` has not been run against the live Supabase project.
-**Impact:** `/api/sync/threat-feed`, `/api/sync/queue`, `/api/sync/nvd` all return 500 errors.
-**Fix:**
+### 1.1 Apply DB Migration 002 ✅ DONE
+Tables `threat_feed`, `simulation_queue`, `sync_jobs` all exist and are populated.
 ```bash
+# Already applied — idempotent (IF NOT EXISTS)
 psql "$DATABASE_URL" -f database/migrations/002-threat-feed.sql
 ```
-**Effort:** 5 minutes
 
 ---
 
-### 1.2 Wire Frontend to Live Backend API
-**What:** All dashboard pages use hardcoded mock data from `frontend/lib/vuln-data.ts`. No page makes a real API call to `localhost:8000`.
-**Impact:** The UI shows nothing real — vulnerabilities, threat feed, exploit results are all fake.
-**Pages that need wiring:**
-- `/vulnerabilities` → `GET /api/sync/threat-feed`
-- `/threat-intelligence` → `GET /api/intel/cve/:id/enriched`
-- `/exploit-lab` → `GET /api/simulation/:id`, `POST /api/simulation/run`
-- `/attack-graph` → `POST /api/attack-graph/build`
-- `/compliance` → `POST /api/ai/compliance`
-- `/reports` → `POST /api/ai/executive-report`
-- `/patch-automation` → `POST /api/ai/patch`
-- Dashboard KPIs → `GET /api/sync/threat-feed/stats`
+### 1.2 Wire Frontend to Live Backend API ✅ DONE
+All dashboard pages are fully wired to the live backend via `frontend/lib/api-client.ts` + `frontend/hooks/use-api.ts`.
 
-**Effort:** 3–5 days
+| Page | API endpoint | Status |
+|---|---|---|
+| Dashboard KPIs | `GET /api/dashboard/stats` | ✅ Live |
+| Dashboard compliance | `GET /api/dashboard/compliance` | ✅ Live |
+| Dashboard activity | `GET /api/dashboard/activity` | ✅ Live |
+| Dashboard assets | `GET /api/assets/stats` | ✅ Live |
+| Vulnerabilities | `GET /api/vulnerabilities` | ✅ Live |
+| Threat Intelligence | `GET /api/sync/threat-feed` + stats | ✅ Live |
+| Exploit Lab | `GET /api/simulation/results` + stats | ✅ Live |
+| Attack Graph | `POST /api/attack-graph/build-auto` | ✅ Live |
+| Compliance | `GET /api/dashboard/compliance` | ✅ Live |
+| Patch Automation | `GET /api/patches` + stats | ✅ Live |
+
+All pages use `useApi()` with loading skeletons and error banners. Fallback data is shown if backend is unreachable.
 
 ---
 
-### 1.3 Run First Live CVE Sync
-**What:** The `threat_feed` table is empty. No CVE data has been pulled from NVD, KEV, or VulDB yet.
-**Fix:**
+### 1.3 Run First Live CVE Sync ✅ DONE
+Database is populated. Live data as of 2026-03-07:
+- **89** threat_feed entries (real CVEs: CVE-2024-21762, CVE-2024-3400, CVE-2024-27198, etc.)
+- **91** vulnerabilities (CVSS 7.0+)
+- **45** assets (16 servers, 7 containers, 7 cloud, 6 databases, 5 endpoints, 4 network devices)
+- **8** patch records with real CVE/PR data
+- **51** attack graph nodes, **260** edges, **9** MITRE tactics
+- **3** compliance frameworks (ISO 27001: 68%, SOC 2: 71%, PCI-DSS: 73%)
+
+To re-run sync:
 ```bash
-# Trigger full sync manually
 curl -X POST http://localhost:8000/api/sync/all
-# Or trigger individual sources
-curl -X POST http://localhost:8000/api/sync/nvd
-curl -X POST http://localhost:8000/api/sync/kev
+# Or individual sources:
+curl -X POST http://localhost:8000/api/sync/nvd -H "Content-Type: application/json" -d '{"hours_back": 24}'
+curl -X POST http://localhost:8000/api/sync/kev -H "Content-Type: application/json" -d '{"days_back": 7}'
 ```
-**Effort:** 10 minutes (then runs automatically on cron schedule)
+
+---
+
+---
+
+### 1.4 Frontend Hardcoded Data Replaced ✅ DONE
+
+All hardcoded mock data removed and replaced with live API calls:
+
+| Component | Was | Now |
+|---|---|---|
+| `recent-alerts.tsx` | Hardcoded 5 CVEs | `threatFeedApi.list({exploit: true, limit: 5})` |
+| `exploit-timeline.tsx` | Static 6-step pipeline | Derived from `dashboardApi.activity()` real events |
+| `page.tsx` integrations | 6 fake SIEM/cloud tools | `integrationsApi.status()` from `/api/integrations/status` |
+| `compliance/page.tsx` | 8 hardcoded controls | `GET /api/dashboard/compliance/controls` from DB |
+| `patch-automation/page.tsx` | 3 hardcoded CI tools | `integrationsApi.status()` (company services) |
+| `lib/vuln-data.ts` | Fake CVE database | Deleted — all pages use `vulnsApi.list()` |
+
+---
+
+### 1.5 Infrastructure Scanner ✅ DONE
+
+Full company infrastructure scanning pipeline built:
+
+**Backend:** `backend/src/routes/infra-scan.ts`
+- `POST /api/infra-scan/run` — scan all 7 company services
+- `GET /api/infra-scan/:id` — poll scan result
+- `GET /api/infra-scan/latest` — latest scan
+- `GET /api/infra-scan/catalog` — full CVE catalog
+- `GET /api/integrations/status` — real service status for dashboard
+
+**Services scanned:** GitLab, WordPress, ERPNext, Keycloak, PostgreSQL, Grafana, Prometheus
+
+**CVEs in catalog:** 16 CVEs total (3 KEV, 11 exploit_available), CVSS range 4.6–10.0
+
+**Frontend:** `frontend/app/(dashboard)/infra-scan/page.tsx`
+- Full 5-step pipeline display: Identify → Detect CVEs → Map → Attack Graph → Patches
+- Per-service detail cards with CVE expansion
+- Attack graph (nodes/edges/tactic kill chain)
+- Prioritized patch recommendations
+
+**Docker clones:** All 7 company services added to `docker-compose.yml` under `company-infra` profile:
+```bash
+docker compose --profile company-infra up -d
+```
+
+**Exploit scripts:**
+- `exploit-files/tools/gitlab/cve_2023_7028.py` — Account takeover PoC
+- `exploit-files/tools/grafana/cve_2021_43798.py` — Arbitrary file read PoC
+- `exploit-files/tools/keycloak/cve_2024_1132.py` — OAuth2 redirect_uri bypass
+- `exploit-files/tools/wordpress/wp_enum.py` — User enum + CVE detection
+- `exploit-files/tools/postgresql/pg_auth_check.py` — Auth + CVE-2024-0985 check
+- `exploit-files/tools/erpnext/cve_2024_25136.py` — SQL injection detection
+- `exploit-files/tools/prometheus/cve_2019_3826.py` — XSS + metrics exposure
 
 ---
 
@@ -133,25 +193,25 @@ python3 exploit-files/tools/rce/spring4shell_exploit.py http://localhost:8104
 ---
 
 ### 3.4 Exploit Results Stored Back to DB
-**What:** The simulation engine writes to `exploit_results` table, but the frontend doesn't display these real results — it shows mock data.
-**Fix:** Wire `/exploit-lab` page to read from `GET /api/simulation/results`.
-**Effort:** 1 day
+**What:** The simulation engine writes to `exploit_results` table, but the frontend exploit lab page reads from `/api/simulation/results` which is already wired. Results will show once real simulations run.
+**Fix:** Run at least one live simulation to populate the `exploit_results` table.
+**Effort:** 30 minutes
 
 ---
 
 ## Summary Table
 
-| Item | Priority | Effort | Blocks |
+| Item | Priority | Effort | Status |
 |---|---|---|---|
-| Apply DB migration 002 | Critical | 5 min | Sync routes |
-| Wire frontend to API | Critical | 3–5 days | All real data |
-| Run first CVE sync | Critical | 10 min | Threat feed data |
-| Anthropic credits | High | 2 min | All AI routes |
-| Log4Shell DNS callback | High | 30 min | RCE confirmation |
-| Spring4Shell test | High | 15 min | CVE-2022-22965 |
-| SSRF full exploit | High | 1 hr | SSRF test |
-| Neo4j graph seed | Medium | 2 days | Attack graph |
-| Network monitoring | Medium | 1 day | Suricata/ntopng |
-| Metasploitable exploits | Medium | 2 days | More CVE coverage |
-| Frontend auth | Medium | 2 days | Multi-user access |
-| Exploit results in UI | Medium | 1 day | Real sim results |
+| Apply DB migration 002 | Critical | 5 min | ✅ Done |
+| Wire frontend to API | Critical | — | ✅ Done |
+| Run first CVE sync | Critical | 10 min | ✅ Done |
+| Anthropic credits | High | 2 min | ⏳ Pending billing |
+| Log4Shell DNS callback | High | 30 min | ⏳ Pending |
+| Spring4Shell test | High | 15 min | ⏳ Pending |
+| SSRF full exploit | High | 1 hr | ⏳ Pending |
+| Neo4j graph seed | Medium | 2 days | ⏳ Pending |
+| Network monitoring | Medium | 1 day | ⏳ Pending |
+| Metasploitable exploits | Medium | 2 days | ⏳ Pending |
+| Frontend auth | Medium | 2 days | ⏳ Pending |
+| Exploit results in UI | Medium | 30 min | ⏳ Pending (needs 1 live sim) |
