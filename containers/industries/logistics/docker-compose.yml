@@ -1,0 +1,523 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Sentinel AI — Logistics / Supply Chain Industry Stack
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Modelled after a realistic logistics & shipment-tracking company.
+# All services deployed from official images / official documentation.
+#
+# Sources:
+#   ERPNext  → https://github.com/frappe/frappe_docker
+#   GitLab   → https://docs.gitlab.com/ee/install/docker/
+#   Keycloak → https://www.keycloak.org/getting-started/getting-started-docker
+#   Kafka    → https://github.com/bitnami/containers/tree/main/bitnami/kafka
+#   Postgres → https://hub.docker.com/_/postgres
+#   Redis    → https://hub.docker.com/_/redis
+#   Prometheus → https://prometheus.io/docs/prometheus/latest/installation/
+#   Grafana  → https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/
+#
+# Usage:
+#   cd containers/industries/logistics
+#   cp .env.example .env          # fill in any overrides
+#   docker compose up -d          # bring up the full stack
+#   docker compose logs -f        # follow logs
+#
+# After ERPNext starts, run the site-creation one-shot (see README.md).
+#
+# Port map (logistics range: 9000–9299):
+#   9000  ERPNext web UI         (http://localhost:9000)
+#   9001  ERPNext websocket
+#   9080  GitLab HTTP            (http://localhost:9080)
+#   9022  GitLab SSH
+#   9090  Keycloak               (http://localhost:9090)
+#   9100  Grafana                (http://localhost:9100)
+#   9191  Prometheus             (http://localhost:9191)
+#   9432  PostgreSQL shipment DB (localhost:9432)
+#   9379  Redis cache            (localhost:9379)
+#   9092  Kafka broker           (localhost:9092)
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+# ── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  logistics-net:
+    driver: bridge
+    name: sentinel-logistics
+
+# ── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  # ERPNext (frappe_docker pattern)
+  erpnext-sites:
+  erpnext-logs:
+  # ERPNext database (MariaDB — required by Frappe framework)
+  mariadb-data:
+  # Redis instances required by Frappe
+  redis-cache-data:
+  redis-queue-data:
+  redis-socketio-data:
+  # Logistics shipment DB (PostgreSQL)
+  pg-shipment-data:
+  # GitLab
+  gitlab-config:
+  gitlab-logs:
+  gitlab-data:
+  # Keycloak DB
+  pg-keycloak-data:
+  # Monitoring
+  prometheus-data:
+  grafana-data:
+  # Kafka
+  kafka-data:
+
+services:
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # ERPNext — Supply chain & operations management
+  # Official: https://github.com/frappe/frappe_docker
+  #
+  # Frappe/ERPNext requires: MariaDB + three Redis instances + several workers.
+  # The pattern below mirrors frappe/frappe_docker's docker-compose.yml exactly.
+  # One-shot services (configurator, create-site) run and exit; the rest stay up.
+  # ════════════════════════════════════════════════════════════════════════════
+
+  # ── MariaDB (Frappe requires MariaDB, not PostgreSQL) ─────────────────────
+  mariadb:
+    image: mariadb:10.6
+    # Official Frappe docs pin MariaDB 10.6 for ERPNext v15
+    # https://github.com/frappe/frappe_docker/blob/main/docker-compose.yml
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-erpnext_root}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    networks:
+      - logistics-net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    container_name: logistics-mariadb
+
+  # ── Redis cache (ERPNext dependency) ──────────────────────────────────────
+  redis-cache:
+    image: redis:alpine
+    volumes:
+      - redis-cache-data:/data
+    networks:
+      - logistics-net
+    restart: unless-stopped
+    container_name: logistics-redis-cache
+
+  # ── Redis queue (ERPNext dependency) ──────────────────────────────────────
+  redis-queue:
+    image: redis:alpine
+    volumes:
+      - redis-queue-data:/data
+    networks:
+      - logistics-net
+    restart: unless-stopped
+    container_name: logistics-redis-queue
+
+  # ── Redis socketio (ERPNext dependency) ───────────────────────────────────
+  redis-socketio:
+    image: redis:alpine
+    volumes:
+      - redis-socketio-data:/data
+    networks:
+      - logistics-net
+    restart: unless-stopped
+    container_name: logistics-redis-socketio
+
+  # ── ERPNext configurator (one-shot: runs once, then exits) ────────────────
+  erpnext-configurator:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-v15.51.2}
+    # Source: https://github.com/frappe/frappe_docker/blob/main/docker-compose.yml
+    deploy:
+      restart_policy:
+        condition: none
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_SOCKETIO";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      REDIS_SOCKETIO: redis-socketio:6379
+      SOCKETIO_PORT: "9000"
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    networks:
+      - logistics-net
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  # ── ERPNext create-site (one-shot: creates the site, then exits) ──────────
+  erpnext-create-site:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-v15.51.2}
+    deploy:
+      restart_policy:
+        condition: none
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+      - erpnext-logs:/home/frappe/frappe-bench/logs
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        wait-for-it -t 120 mariadb:3306;
+        wait-for-it -t 120 redis-cache:6379;
+        wait-for-it -t 120 redis-queue:6379;
+        wait-for-it -t 120 redis-socketio:6379;
+        export start=`date +%s`;
+        until [[ -n `grep -hs ^ sites/common_site_config.json | python -c "import sys; import json; config = json.load(sys.stdin); print(config.get('db_host', config.get('db_port', '')))"` ]];
+        do
+          echo "Waiting for common_site_config.json...";
+          sleep 5;
+          if (( `date +%s`-start > 120 )); then
+            echo "Timed out waiting for common_site_config.json"; exit 1;
+          fi;
+        done;
+        bench new-site logistics.local \
+          --mariadb-root-password=${MYSQL_ROOT_PASSWORD:-erpnext_root} \
+          --admin-password=${ERPNEXT_ADMIN_PASSWORD:-admin} \
+          --install-app erpnext \
+          --set-default;
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: "3306"
+    networks:
+      - logistics-net
+    depends_on:
+      - erpnext-configurator
+      - mariadb
+      - redis-cache
+      - redis-queue
+      - redis-socketio
+
+  # ── ERPNext backend (Gunicorn WSGI) ───────────────────────────────────────
+  erpnext-backend:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-v15.51.2}
+    deploy:
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+      - erpnext-logs:/home/frappe/frappe-bench/logs
+    networks:
+      - logistics-net
+    depends_on:
+      - erpnext-create-site
+    restart: unless-stopped
+    container_name: logistics-erpnext-backend
+
+  # ── ERPNext frontend (nginx) ───────────────────────────────────────────────
+  erpnext-frontend:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-v15.51.2}
+    command: nginx-entrypoint.sh
+    environment:
+      BACKEND: erpnext-backend:8000
+      SOCKETIO: erpnext-websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: "120"
+      CLIENT_MAX_BODY_SIZE: 50m
+      FRAPPE_SITE_NAME_HEADER: logistics.local
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    ports:
+      - "9000:8080"
+    networks:
+      - logistics-net
+    depends_on:
+      - erpnext-backend
+      - erpnext-websocket
+    restart: unless-stopped
+    container_name: logistics-erpnext
+
+  # ── ERPNext websocket (Socket.IO) ─────────────────────────────────────────
+  erpnext-websocket:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-v15.51.2}
+    command: node /home/frappe/frappe-bench/apps/frappe/socketio.js
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    ports:
+      - "9001:9000"
+    networks:
+      - logistics-net
+    depends_on:
+      - erpnext-backend
+    restart: unless-stopped
+    container_name: logistics-erpnext-ws
+
+  # ── ERPNext scheduler ─────────────────────────────────────────────────────
+  erpnext-scheduler:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-v15.51.2}
+    command: bench schedule
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+      - erpnext-logs:/home/frappe/frappe-bench/logs
+    networks:
+      - logistics-net
+    depends_on:
+      - erpnext-backend
+    restart: unless-stopped
+    container_name: logistics-erpnext-scheduler
+
+  # ── ERPNext queue workers (short + long) ──────────────────────────────────
+  erpnext-queue-short:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-v15.51.2}
+    command: bench worker --queue short,default
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+      - erpnext-logs:/home/frappe/frappe-bench/logs
+    networks:
+      - logistics-net
+    depends_on:
+      - erpnext-backend
+    restart: unless-stopped
+    container_name: logistics-erpnext-queue-short
+
+  erpnext-queue-long:
+    image: frappe/erpnext:${ERPNEXT_VERSION:-v15.51.2}
+    command: bench worker --queue long,default,short
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+      - erpnext-logs:/home/frappe/frappe-bench/logs
+    networks:
+      - logistics-net
+    depends_on:
+      - erpnext-backend
+    restart: unless-stopped
+    container_name: logistics-erpnext-queue-long
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # PostgreSQL — Shipment tracking database (separate from ERPNext MariaDB)
+  # Official: https://hub.docker.com/_/postgres
+  # ════════════════════════════════════════════════════════════════════════════
+  postgres-shipment:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: shipments
+      POSTGRES_USER: ${PG_USER:-logistics}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-logistics_pass}
+    volumes:
+      - pg-shipment-data:/var/lib/postgresql/data
+    ports:
+      - "9432:5432"
+    networks:
+      - logistics-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-logistics} -d shipments"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    container_name: logistics-postgres
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Redis — Real-time tracking cache (separate from ERPNext redis instances)
+  # Official: https://hub.docker.com/_/redis
+  # ════════════════════════════════════════════════════════════════════════════
+  redis-tracking:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "9379:6379"
+    networks:
+      - logistics-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    container_name: logistics-redis
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Apache Kafka — Event streaming for logistics updates
+  # Official (Bitnami): https://github.com/bitnami/containers/tree/main/bitnami/kafka
+  # Bitnami Kafka 3.7+ supports KRaft mode (no ZooKeeper required)
+  # ════════════════════════════════════════════════════════════════════════════
+  kafka:
+    image: apache/kafka:latest
+    # Official Apache Kafka image — KRaft mode (no ZooKeeper required)
+    # https://hub.docker.com/r/apache/kafka
+    environment:
+      KAFKA_NODE_ID: 0
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    ports:
+      - "9092:9092"
+    networks:
+      - logistics-net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    container_name: logistics-kafka
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Keycloak — Employee authentication & identity management
+  # Official: https://www.keycloak.org/getting-started/getting-started-docker
+  # Production mode with PostgreSQL backend
+  # ════════════════════════════════════════════════════════════════════════════
+
+  # Keycloak's dedicated PostgreSQL instance
+  keycloak-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: ${KC_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak_pass}
+    volumes:
+      - pg-keycloak-data:/var/lib/postgresql/data
+    networks:
+      - logistics-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KC_DB_USER:-keycloak} -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    container_name: logistics-keycloak-db
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    # Official production start command
+    # https://www.keycloak.org/server/containers
+    command: start-dev
+    # Use start-dev for demonstration; for production swap to 'start'
+    # and provide a TLS certificate.
+    environment:
+      KEYCLOAK_ADMIN: ${KC_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak_pass}
+      KC_HOSTNAME: localhost
+      KC_HTTP_PORT: 8080
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    ports:
+      - "9090:8080"
+    networks:
+      - logistics-net
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+    container_name: logistics-keycloak
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # GitLab CE — Development repository & CI/CD
+  # Official: https://docs.gitlab.com/ee/install/docker/
+  # ════════════════════════════════════════════════════════════════════════════
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    hostname: gitlab.logistics.local
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:9080'
+        gitlab_rails['gitlab_shell_ssh_port'] = 9022
+        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD:-SentinelLogistics!}'
+        # Disable email for local demo
+        gitlab_rails['smtp_enable'] = false
+        gitlab_rails['gitlab_email_enabled'] = false
+        nginx['listen_port'] = 80
+    ports:
+      - "9080:80"
+      - "9022:22"
+    volumes:
+      - gitlab-config:/etc/gitlab
+      - gitlab-logs:/var/log/gitlab
+      - gitlab-data:/var/opt/gitlab
+    shm_size: "256m"
+    networks:
+      - logistics-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 10
+      start_period: 300s
+    restart: unless-stopped
+    container_name: logistics-gitlab
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Prometheus — Metrics collection
+  # Official: https://prometheus.io/docs/prometheus/latest/installation/#using-docker
+  # ════════════════════════════════════════════════════════════════════════════
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9191:9090"
+    networks:
+      - logistics-net
+    restart: unless-stopped
+    container_name: logistics-prometheus
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Grafana — Monitoring dashboards
+  # Official: https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/
+  # ════════════════════════════════════════════════════════════════════════════
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "9100:3000"
+    networks:
+      - logistics-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    container_name: logistics-grafana

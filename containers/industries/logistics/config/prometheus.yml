@@ -1,0 +1,36 @@
+# ─── Prometheus Configuration — Logistics Stack ──────────────────────────────
+# Official reference: https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    industry: logistics
+    environment: demo
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Keycloak metrics (exposed at /metrics via KC_METRICS_ENABLED=true)
+  - job_name: keycloak
+    static_configs:
+      - targets: ["keycloak:8080"]
+    metrics_path: /metrics
+
+  # Kafka (via JMX exporter if added — placeholder for now)
+  # - job_name: kafka
+  #   static_configs:
+  #     - targets: ["kafka:9308"]
+
+  # PostgreSQL shipment DB (via postgres_exporter — placeholder)
+  # - job_name: postgres
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]
+
+  # Grafana self-monitoring
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+    metrics_path: /metrics
