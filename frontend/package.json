@@ -6,7 +6,8 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:api": "node --test tests/api-integration.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
