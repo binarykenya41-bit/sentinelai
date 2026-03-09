@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: sentinelai-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+      - key: NVD_API_KEY
+        value: 9276f8ff-2e38-4503-89fc-f38cdc88b743
+      - key: VULDB_API_KEY
+        value: b9658d48154624beafb2599823cfbf88
+      - key: DEFAULT_ORG_ID
+        value: a1b2c3d4-0001-0001-0001-000000000001
+      - key: AUTO_SIM_ENABLED
+        value: "false"
+      - key: AUTO_SIM_DRY_RUN
+        value: "true"

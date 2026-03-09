@@ -34,7 +34,7 @@ import { infrastructureRoutes } from "./routes/infrastructure.js"
 import { industriesRoutes } from "./routes/industries.js"
 import { startScheduler } from "./services/scheduler.js"
 
-const PORT = parseInt(process.env.BACKEND_PORT ?? "8000")
+const PORT = parseInt(process.env.PORT ?? process.env.BACKEND_PORT ?? "8000")
 const CORS_ORIGINS = (process.env.BACKEND_CORS_ORIGINS ?? "http://localhost:3000").split(",")
 
 const app = Fastify({ logger: { level: "info" } })
