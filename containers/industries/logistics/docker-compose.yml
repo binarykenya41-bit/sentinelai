@@ -29,8 +29,7 @@
 # Port map (logistics range: 9000–9299):
 #   9000  ERPNext web UI             (http://localhost:9000)   admin / admin
 #   9001  ERPNext websocket
-#   9022  GitLab SSH
-#   9080  GitLab HTTP                (http://localhost:9080)   root / SentinelLogistics!
+#   (GitLab removed — replaced by GitHub Actions self-hosted runner)
 #   9092  Kafka broker               (localhost:9092)
 #   9100  Grafana                    (http://localhost:9100)   admin / admin
 #   9191  Prometheus                 (http://localhost:9191)
@@ -59,10 +58,8 @@ volumes:
   redis-socketio-data:
   # Logistics shipment DB (PostgreSQL)
   pg-shipment-data:
-  # GitLab
-  gitlab-config:
-  gitlab-logs:
-  gitlab-data:
+  # GitHub Actions runner work directory
+  github-runner-data:
   # Monitoring
   prometheus-data:
   grafana-data:
@@ -491,42 +488,37 @@ services:
     container_name: logistics-kafka-exporter
 
   # ════════════════════════════════════════════════════════════════════════════
-  # GitLab CE — Source control & CI/CD
-  # Local auth only: root / SentinelLogistics!
+  # GitHub Actions Self-Hosted Runner — CI/CD (replaces GitLab CE)
+  # Connects to GitHub repo for CI/CD pipelines.
+  # Set GITHUB_RUNNER_TOKEN and GITHUB_REPO in .env before starting.
+  #
+  # Generate a runner token:
+  #   https://github.com/<owner>/<repo>/settings/actions/runners/new
+  #
+  # Runner registration URL: https://github.com/${GITHUB_REPO}
+  # Ports: none exposed — runner polls GitHub over HTTPS (outbound only)
   # ════════════════════════════════════════════════════════════════════════════
-  gitlab:
-    image: gitlab/gitlab-ce:latest
-    hostname: gitlab.logistics.local
+  github-runner:
+    image: myoung34/github-runner:latest
     environment:
-      GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://localhost:9080'
-        gitlab_rails['gitlab_shell_ssh_port'] = 9022
-        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD:-SentinelLogistics!}'
-        gitlab_rails['smtp_enable'] = false
-        gitlab_rails['gitlab_email_enabled'] = false
-        nginx['listen_port'] = 80
-
-        # ── GitLab Prometheus metrics endpoint ────────────────────────────
-        gitlab_rails['monitoring_whitelist'] = ['0.0.0.0/0']
-        prometheus_monitoring['enable'] = false
-    ports:
-      - "9080:80"
-      - "9022:22"
+      RUNNER_NAME: logistics-sentinel-runner
+      RUNNER_LABELS: logistics,sentinel,docker
+      RUNNER_WORKDIR: /tmp/runner/work
+      RUNNER_SCOPE: repo
+      EPHEMERAL: "false"
+      DISABLE_AUTO_UPDATE: "false"
+      # Set these in your .env file:
+      #   GITHUB_ACCESS_TOKEN — Personal Access Token or fine-grained token
+      #   REPO_URL — e.g. https://github.com/Alphaxide/sentinel-logistics-security
+      ACCESS_TOKEN: ${GITHUB_ACCESS_TOKEN:-${GITHUBTOKEN}}
+      REPO_URL: ${GITHUB_REPO_URL:-https://github.com/Alphaxide/sentinel-logistics-security}
     volumes:
-      - gitlab-config:/etc/gitlab
-      - gitlab-logs:/var/log/gitlab
-      - gitlab-data:/var/opt/gitlab
-    shm_size: "256m"
+      - /var/run/docker.sock:/var/run/docker.sock
+      - github-runner-data:/tmp/runner
     networks:
       - logistics-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 10
-      start_period: 300s
     restart: unless-stopped
-    container_name: logistics-gitlab
+    container_name: logistics-github-runner
 
   # ════════════════════════════════════════════════════════════════════════════
   # Prometheus — Metrics collection

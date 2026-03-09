@@ -8,9 +8,11 @@ import {
   Wifi, Cloud, Container, Monitor, Users, Code2,
   Swords, Mail, Bug, Eye, Zap, GitMerge, BarChart3,
   AlertOctagon, ChevronDown, Server, Box, Layers, GitBranch, ScanLine,
+  LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import { useIndustry } from "@/lib/industry-context"
 
 type NavItem = { label: string; href: string; icon: React.ElementType }
 type NavGroup = { group: string; items: NavItem[] }
@@ -36,6 +38,7 @@ const navGroups: NavGroup[] = [
     group: "Simulation & Attack",
     items: [
       { label: "Exploit Lab", href: "/exploit-lab", icon: FlaskConical },
+      { label: "Logistics Lab", href: "/logistics-lab", icon: Server },
       { label: "Red Team", href: "/red-team", icon: Swords },
       { label: "Attack Graph", href: "/attack-graph", icon: Network },
       { label: "Phishing & Social Eng.", href: "/phishing", icon: Mail },
@@ -96,6 +99,7 @@ const navGroups: NavGroup[] = [
 export function AppSidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const { industryMeta, clearIndustry } = useIndustry()
 
   const toggleGroup = (group: string) => {
     setCollapsed((prev) => ({ ...prev, [group]: !prev[group] }))
@@ -109,6 +113,17 @@ export function AppSidebar() {
         <span className="text-sm font-bold tracking-widest text-sidebar-foreground uppercase">
           Sentinel<span className="text-primary">AI</span>
         </span>
+      </div>
+
+      {/* Industry banner */}
+      <div className={`mx-2 mt-2 mb-1 rounded-md border px-2 py-1.5 ${industryMeta.accentColor}`}>
+        <div className="flex items-center gap-1.5">
+          <span className="text-base">{industryMeta.icon}</span>
+          <div className="min-w-0">
+            <p className={`text-[10px] font-semibold truncate ${industryMeta.color}`}>{industryMeta.name}</p>
+            <p className="text-[9px] text-muted-foreground">Demo Environment</p>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
@@ -160,12 +175,19 @@ export function AppSidebar() {
       <div className="border-t border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary shrink-0">
-            SA
+            DA
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-[11px] font-medium text-sidebar-foreground truncate">Security Admin</span>
-            <span className="text-[10px] text-muted-foreground truncate">admin@sentinel.io</span>
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-[11px] font-medium text-sidebar-foreground truncate">Demo Admin</span>
+            <span className="text-[10px] text-muted-foreground truncate">demo@sentinel.io</span>
           </div>
+          <button
+            onClick={clearIndustry}
+            title="Switch environment"
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+          >
+            <LogOut className="h-3 w-3" />
+          </button>
         </div>
       </div>
     </aside>

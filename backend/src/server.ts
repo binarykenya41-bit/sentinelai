@@ -28,8 +28,10 @@ import { redTeamRoutes } from "./routes/red-team.js"
 import { endpointSecurityRoutes } from "./routes/endpoint-security.js"
 import { darkWebRoutes } from "./routes/dark-web.js"
 import { phishingRoutes } from "./routes/phishing.js"
+import { logisticsLabRoutes } from "./routes/logistics-lab.js"
 import { settingsRoutes } from "./routes/settings.js"
 import { infrastructureRoutes } from "./routes/infrastructure.js"
+import { industriesRoutes } from "./routes/industries.js"
 import { startScheduler } from "./services/scheduler.js"
 
 const PORT = parseInt(process.env.BACKEND_PORT ?? "8000")
@@ -117,6 +119,8 @@ await app.register(darkWebRoutes)
 await app.register(phishingRoutes)
 await app.register(settingsRoutes)
 await app.register(infrastructureRoutes)
+await app.register(industriesRoutes)
+await app.register(logisticsLabRoutes)
 
 // ---- Global error handler ----
 app.setErrorHandler((err, _req, reply) => {

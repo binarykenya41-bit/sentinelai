@@ -473,6 +473,16 @@ export const patchesApi = {
   },
   stats: () => apiFetch<PatchStats>("/api/patches/stats"),
   get: (id: string) => apiFetch<PatchRecord>(`/api/patches/${id}`),
+  generate: (vuln_id: string) =>
+    apiFetch<PatchRecord & { patch_explanation?: string; pr_url?: string | null }>("/api/patches/generate", {
+      method: "POST",
+      body: JSON.stringify({ vuln_id }),
+    }),
+  merge: (patch_id: string) =>
+    apiFetch<PatchRecord>(`/api/patches/${patch_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ merge_status: "merged", ci_status: "passed" }),
+    }),
 }
 
 // ─── Incidents ───────────────────────────────────────────────────────────────
@@ -1097,4 +1107,51 @@ export const infraApi = {
   get: (id: string) => apiFetch<InfraNode>(`/api/infrastructure/${id}`),
   create: (body: { name: string; type: string; environment: string; ip_address?: string; hostname?: string; os_name?: string; os_version?: string; patch_status?: string; external_tool?: string }) =>
     apiFetch<InfraNode>("/api/infrastructure", { method: "POST", body: JSON.stringify(body) }),
+}
+
+// ─── Logistics Lab ────────────────────────────────────────────────────────────
+
+export interface LogisticsServiceStatus {
+  service: string
+  label: string
+  port: number
+  up: boolean
+  cve: string
+  cvss: number
+}
+
+export interface LogisticsExploitResult {
+  result_id: string
+  service: string
+  label: string
+  cve: string
+  cvss: number
+  technique: string
+  success: boolean
+  confidence: number
+  exit_code: number
+  duration_ms: number
+  output: string
+}
+
+export interface LogisticsSeedResult {
+  ok: boolean
+  assets_seeded: number
+  assets_existing: number
+  vulns_seeded: number
+  vulns_existing: number
+  total_vulns: number
+  vuln_ids: Record<string, string>
+}
+
+export const logisticsLabApi = {
+  status: () => apiFetch<{ services: LogisticsServiceStatus[]; checked_at: string }>("/api/logistics/status"),
+  exploit: (service: string, target_host?: string) =>
+    apiFetch<LogisticsExploitResult>("/api/logistics/exploit", {
+      method: "POST",
+      body: JSON.stringify({ service, target_host }),
+    }),
+  seed: () => apiFetch<LogisticsSeedResult>("/api/logistics/seed", { method: "POST", body: "{}" }),
+  results: () => apiFetch<{ vulns: unknown[]; results: unknown[]; logistics_cves: string[] }>("/api/logistics/results"),
+  vulnerabilities: () => apiFetch<{ vulnerabilities: unknown[] }>("/api/logistics/vulnerabilities"),
 }
