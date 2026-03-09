@@ -1,31 +1,139 @@
+## Sentinel AI — single-file Render deployment
+## Push this repo to GitHub, connect it in the Render dashboard,
+## then set the `sync: false` env vars in the Render UI (Secrets).
+##
+## Services deployed:
+##   1. sentinelai-backend   — Fastify API (Node 20)
+##   2. sentinelai-frontend  — Next.js 14 (Node 20)
+##   3. sentinelai-cve-sync  — CVE intelligence background worker (Node 20)
+##   4. sentinelai-redis     — Managed Redis (shared by backend + cve-sync)
+
 services:
+  # ─────────────────────────────────────────────────────────────
+  # 1. BACKEND — Fastify API
+  # ─────────────────────────────────────────────────────────────
   - type: web
     name: sentinelai-backend
     runtime: node
     rootDir: backend
     buildCommand: npm install && npm run build
-    startCommand: npm run start
-    healthCheckPath: /healthz
+    startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: "8000"
+
+      # ── Supabase ──
       - key: SUPABASE_URL
-        sync: false
+        sync: false          # set in Render dashboard
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+
+      # ── AI ──
       - key: ANTHROPIC_API_KEY
         sync: false
+
+      # ── Redis ──
+      - key: REDIS_URL
+        fromService:
+          name: sentinelai-redis
+          type: redis
+          property: connectionString
+
+      # ── CORS: allow the frontend Render URL + any *.onrender.com ──
       - key: BACKEND_CORS_ORIGINS
-        sync: false
+        sync: false          # paste your frontend URL here after first deploy
+                             # e.g. https://sentinelai-frontend.onrender.com
+
+      # ── CVE Intelligence ──
       - key: NVD_API_KEY
         value: 9276f8ff-2e38-4503-89fc-f38cdc88b743
       - key: VULDB_API_KEY
         value: b9658d48154624beafb2599823cfbf88
+
+      # ── Demo defaults ──
       - key: DEFAULT_ORG_ID
         value: a1b2c3d4-0001-0001-0001-000000000001
       - key: AUTO_SIM_ENABLED
         value: "false"
       - key: AUTO_SIM_DRY_RUN
         value: "true"
+
+  # ─────────────────────────────────────────────────────────────
+  # 2. FRONTEND — Next.js
+  # ─────────────────────────────────────────────────────────────
+  - type: web
+    name: sentinelai-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+
+      # ── Supabase (public keys — exposed to browser) ──
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+
+      # ── Backend URL (browser → backend) ──
+      # After the backend deploys, paste its onrender.com URL here
+      - key: NEXT_PUBLIC_API_URL
+        sync: false          # e.g. https://sentinelai-backend.onrender.com
+
+      - key: NEXT_PUBLIC_APP_NAME
+        value: Sentinel AI
+
+  # ─────────────────────────────────────────────────────────────
+  # 3. CVE SYNC — background worker
+  # Runs the scheduler (NVD/KEV/VulDB) + exposes /health on 8001
+  # ─────────────────────────────────────────────────────────────
+  - type: worker
+    name: sentinelai-cve-sync
+    runtime: node
+    rootDir: cve-sync
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8001"
+
+      # ── Supabase ──
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # ── CVE Intelligence ──
+      - key: NVD_API_KEY
+        value: 9276f8ff-2e38-4503-89fc-f38cdc88b743
+      - key: VULDB_API_KEY
+        value: b9658d48154624beafb2599823cfbf88
+      - key: VULDB_MAX_PER_SYNC
+        value: "40"
+
+      # ── Cron schedule (UTC) ──
+      - key: NVD_CRON
+        value: "0 * * * *"       # every hour
+      - key: KEV_CRON
+        value: "0 */6 * * *"     # every 6 hours
+      - key: FULL_SYNC_CRON
+        value: "0 2 * * *"       # daily 02:00 UTC
+
+  # ─────────────────────────────────────────────────────────────
+  # 4. REDIS — Managed Redis (shared cache)
+  # ─────────────────────────────────────────────────────────────
+  - type: redis
+    name: sentinelai-redis
+    ipAllowList: []              # only allow internal Render network
+    plan: free

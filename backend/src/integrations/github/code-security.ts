@@ -38,7 +38,7 @@ export interface DependabotAlert {
 export async function getCodeScanningAlerts(
   owner: string,
   repo: string,
-  state: "open" | "closed" | "dismissed" = "open"
+  state: "open" | "dismissed" | "fixed" = "open"
 ): Promise<CodeScanAlert[]> {
   const octokit = getOctokit()
   const { data } = await octokit.codeScanning.listAlertsForRepo({
@@ -53,7 +53,7 @@ export async function getCodeScanningAlerts(
     rule_id: a.rule.id ?? "",
     rule_severity: a.rule.severity ?? null,
     rule_description: a.rule.description ?? null,
-    state: a.state,
+    state: a.state ?? "open",
     html_url: a.html_url,
     cwe_ids: (a.rule.tags ?? []).filter((t) => t.startsWith("external/cwe")),
     created_at: a.created_at,
@@ -103,10 +103,9 @@ export async function getDependabotAlerts(
 // Fetch GitHub Security Advisory API — public advisories for a package
 export async function getSecurityAdvisories(ecosystem: string, packageName: string) {
   const octokit = getOctokit()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await octokit.securityAdvisories.listGlobalAdvisories({
-    ecosystem: ecosystem as Parameters<
-      typeof octokit.securityAdvisories.listGlobalAdvisories
-    >[0]["ecosystem"],
+    ecosystem: ecosystem as any,
     affects: packageName,
     per_page: 50,
   })

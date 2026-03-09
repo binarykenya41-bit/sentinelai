@@ -32,6 +32,8 @@ function mapVuln(v: ApiVuln): LocalVuln {
     description: `CVSS ${cvss.toFixed(1)} — CWE: ${(v.cwe_ids ?? []).join(", ") || "N/A"}. ${v.kev_status ? "CISA KEV listed." : ""} Blast radius: ${v.blast_radius ?? "Unknown"}.`,
     attackScenario: `Detected via ${v.scan_source ?? "scanner"}. MITRE techniques: ${(v.mitre_techniques ?? []).join(", ") || "N/A"}. EPSS exploitation probability: ${((v.epss_score ?? 0) * 100).toFixed(1)}%.`,
     suggestedPatch: `Remediate ${v.cve_id} — apply vendor patch, update dependencies, and re-run exploit simulation to verify fix.`,
+    vuln_id: v.vuln_id,
+    cwe_ids: v.cwe_ids ?? [],
   }
 }
 

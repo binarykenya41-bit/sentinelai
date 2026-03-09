@@ -1,15 +1,16 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { GitBranch, GitPullRequest, CheckCircle, Circle, XCircle, Loader2, AlertTriangle, RefreshCw } from "lucide-react"
+import { GitBranch, GitPullRequest, CheckCircle, Circle, XCircle, Loader2, AlertTriangle, RefreshCw, ExternalLink } from "lucide-react"
 import { useApi } from "@/hooks/use-api"
 import { patchesApi, integrationsApi, type PatchRecord, type PatchStats } from "@/lib/api-client"
+import { toast } from "sonner"
 
 function mergeStatusBadge(status: string | null) {
   const s = status ?? "open"
@@ -46,6 +47,23 @@ export default function PatchAutomationPage() {
   const { data, loading, error, refetch } = useApi(() => patchesApi.list({ limit: 50 }), [])
   const { data: stats } = useApi(() => patchesApi.stats(), [])
   const { data: integrationStatus } = useApi(() => integrationsApi.status(), [])
+  const [mergingId, setMergingId] = useState<string | null>(null)
+
+  const handleMerge = async (patch: PatchRecord) => {
+    setMergingId(patch.patch_id)
+    const toastId = toast.loading(`Merging PR for ${(patch.vulnerabilities as { cve_id?: string } | undefined)?.cve_id ?? patch.vuln_id.slice(0, 8)}...`)
+    try {
+      await patchesApi.merge(patch.patch_id)
+      toast.dismiss(toastId)
+      toast.success("PR merged — vulnerability marked as patched")
+      refetch()
+    } catch (err) {
+      toast.dismiss(toastId)
+      toast.error(err instanceof Error ? err.message : "Merge failed")
+    } finally {
+      setMergingId(null)
+    }
+  }
 
   const patches: PatchRecord[] = data?.patches ?? []
   const patchStats = stats as PatchStats | null
@@ -143,9 +161,24 @@ export default function PatchAutomationPage() {
                           Detail
                         </Button>
                       </Link>
+                      {patch.pr_url && (
+                        <a href={patch.pr_url} target="_blank" rel="noreferrer">
+                          <Button variant="outline" size="sm" className="h-7 border-border bg-secondary text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground">
+                            <ExternalLink className="h-3 w-3 mr-1" />PR
+                          </Button>
+                        </a>
+                      )}
                       {patch.merge_status === "open" && (
-                        <Button size="sm" className="h-7 bg-primary text-primary-foreground hover:bg-primary/90 text-xs">
-                          Merge
+                        <Button
+                          size="sm"
+                          className="h-7 bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
+                          onClick={() => handleMerge(patch)}
+                          disabled={mergingId === patch.patch_id}
+                        >
+                          {mergingId === patch.patch_id
+                            ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Merging...</>
+                            : "Merge"
+                          }
                         </Button>
                       )}
                     </div>

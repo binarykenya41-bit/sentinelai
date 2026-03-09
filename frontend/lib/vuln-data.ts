@@ -10,6 +10,9 @@ export interface Vulnerability {
   description: string
   attackScenario: string
   suggestedPatch: string
+  // API fields passed through for action buttons
+  vuln_id?: string
+  cwe_ids?: string[]
 }
 
 export const vulnerabilities: Vulnerability[] = [

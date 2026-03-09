@@ -1,0 +1,227 @@
+name: sentinel-healthcare
+
+networks:
+  sentinel-healthcare:
+    driver: bridge
+
+volumes:
+  medicore-postgres-data:
+  openemr-mysql-data:
+  orthanc-data:
+  medicore-audit-data:
+
+services:
+
+  medicore-postgres:
+    image: postgres:15-alpine
+    hostname: medicore-postgres
+    container_name: medicore-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medicore
+      POSTGRES_USER: medicore
+      POSTGRES_PASSWORD: MediCore2024!
+    ports:
+      - "9732:5432"
+    volumes:
+      - medicore-postgres-data:/var/lib/postgresql/data
+      - ./config/init:/docker-entrypoint-initdb.d
+    networks:
+      - sentinel-healthcare
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medicore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  openemr-mysql:
+    image: mariadb:10.11
+    hostname: openemr-mysql
+    container_name: openemr-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: MediCore2024!
+      MYSQL_USER: openemr
+      MYSQL_DATABASE: openemr
+      MYSQL_PASSWORD: openemr
+    ports:
+      - "9706:3306"
+    volumes:
+      - openemr-mysql-data:/var/lib/mysql
+    networks:
+      - sentinel-healthcare
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  openemr-ehr:
+    image: openemr/openemr:7.0.2
+    hostname: openemr-ehr
+    container_name: openemr-ehr
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: MediCore2024!
+      MYSQL_USER: openemr
+      MYSQL_PASS: openemr
+      MYSQL_HOST: openemr-mysql
+      OE_USER: admin
+      OE_PASS: MediCore2024!
+    ports:
+      - "9700:80"
+      - "9743:443"
+    depends_on:
+      openemr-mysql:
+        condition: service_healthy
+    networks:
+      - sentinel-healthcare
+
+  redis-sessions:
+    image: redis:7-alpine
+    hostname: redis-sessions
+    container_name: medicore-redis-sessions
+    restart: unless-stopped
+    ports:
+      - "9779:6379"
+    networks:
+      - sentinel-healthcare
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak-iam:
+    image: quay.io/keycloak/keycloak:23.0.3
+    hostname: keycloak-iam
+    container_name: keycloak-iam
+    restart: unless-stopped
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: MediCore2024!
+    command: start-dev
+    ports:
+      - "9780:8080"
+    networks:
+      - sentinel-healthcare
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  dicom-viewer:
+    image: orthancteam/orthanc:24.1.3
+    hostname: dicom-viewer
+    container_name: dicom-viewer
+    restart: unless-stopped
+    environment:
+      ORTHANC__AUTHENTICATION_ENABLED: "false"
+    ports:
+      - "9702:8042"
+      - "9704:4242"
+    volumes:
+      - orthanc-data:/var/lib/orthanc/db
+    networks:
+      - sentinel-healthcare
+
+  hl7-gateway:
+    image: nextgenhealthcare/connect:4.4.1
+    hostname: hl7-gateway
+    container_name: hl7-gateway
+    restart: unless-stopped
+    environment:
+      DATABASE_TYPE: derby
+    ports:
+      - "9703:8080"
+      - "9705:8443"
+    networks:
+      - sentinel-healthcare
+
+  fhir-r4-api:
+    image: hapiproject/hapi:v6.10.0
+    hostname: fhir-r4-api
+    container_name: fhir-r4-api
+    restart: unless-stopped
+    environment:
+      hapi.fhir.fhir_version: R4
+      spring.datasource.url: jdbc:postgresql://medicore-postgres:5432/medicore
+      spring.datasource.username: medicore
+      spring.datasource.password: MediCore2024!
+      spring.datasource.driverClassName: org.postgresql.Driver
+    ports:
+      - "9701:8080"
+    depends_on:
+      medicore-postgres:
+        condition: service_healthy
+    networks:
+      - sentinel-healthcare
+
+  imaging-processor:
+    image: python:3.11-slim
+    hostname: imaging-processor
+    container_name: imaging-processor
+    restart: unless-stopped
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        pip install flask --quiet && python3 -c "
+        from flask import Flask,jsonify,request
+        app=Flask(__name__)
+        @app.route('/health')
+        def h(): return jsonify(status='ok',service='imaging-processor',version='2.1.0')
+        @app.route('/api/v1/dicom/process',methods=['POST'])
+        def p():
+            d=request.get_json(force=True) or {}
+            return jsonify(job_id='img_job_'+str(id(d)),status='queued',modality=d.get('modality','CT'),patient_id=d.get('patient_id'))
+        @app.route('/api/v1/dicom/studies')
+        def s(): return jsonify(studies=[{'study_id':'1.2.3.4.5','modality':'CT','patient_id':'P001','date':'2024-01-10'}])
+        app.run(host='0.0.0.0',port=5000)"
+    ports:
+      - "9708:5000"
+    networks:
+      - sentinel-healthcare
+
+  audit-compliance-db:
+    image: postgres:15-alpine
+    hostname: audit-compliance-db
+    container_name: audit-compliance-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: audit
+      POSTGRES_USER: medicore
+      POSTGRES_PASSWORD: MediCore2024!
+    ports:
+      - "9733:5432"
+    volumes:
+      - medicore-audit-data:/var/lib/postgresql/data
+    networks:
+      - sentinel-healthcare
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medicore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  patient-portal:
+    image: node:20-alpine
+    hostname: patient-portal
+    container_name: patient-portal
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        npm init -y && npm install express && node -e "
+        const e=require('express'),app=e();app.use(e.json());
+        app.get('/health',(q,r)=>r.json({status:'ok',service:'patient-portal',version:'1.8.3'}));
+        app.get('/api/patients/:id',(q,r)=>r.json({patient_id:q.params.id,name:'Jane Doe',dob:'1985-03-12',mrn:'MRN-' + q.params.id}));
+        app.get('/api/appointments',(q,r)=>r.json({appointments:[{id:'apt_001',date:'2024-01-20',provider:'Dr. Smith',status:'confirmed'}]}));
+        app.listen(3000,()=>console.log('Patient Portal :3000'));"
+    ports:
+      - "9750:3000"
+    networks:
+      - sentinel-healthcare

@@ -29,12 +29,12 @@ export async function getSccFindings(
   const severityFilter = severities.map((s) => `severity="${s}"`).join(" OR ")
   const filter = `state="${state}" AND (${severityFilter})`
 
-  const { data } = await scc.projects.findings.list({
+  const { data } = await scc.projects.sources.findings.list({
     parent: `projects/${projectId}/sources/-`,
     filter,
     pageSize,
     orderBy: "event_time desc",
-  } as Parameters<typeof scc.projects.findings.list>[0])
+  } as Parameters<typeof scc.projects.sources.findings.list>[0])
 
   return (data.listFindingsResults ?? []).map((r) => {
     const finding = r.finding!

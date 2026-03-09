@@ -1,0 +1,222 @@
+name: sentinel-ecommerce
+
+networks:
+  sentinel-ecommerce:
+    driver: bridge
+
+volumes:
+  shopvault-postgres-data:
+  shopvault-es-data:
+  shopvault-minio-data:
+
+services:
+
+  inventory-postgres:
+    image: postgres:15-alpine
+    hostname: inventory-postgres
+    container_name: inventory-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shopvault
+      POSTGRES_USER: shopvault
+      POSTGRES_PASSWORD: ShopVault2024!
+    ports:
+      - "9532:5432"
+    volumes:
+      - shopvault-postgres-data:/var/lib/postgresql/data
+      - ./config/init:/docker-entrypoint-initdb.d
+    networks:
+      - sentinel-ecommerce
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopvault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cart-redis:
+    image: redis:7-alpine
+    hostname: cart-redis
+    container_name: cart-redis
+    restart: unless-stopped
+    ports:
+      - "9579:6379"
+    networks:
+      - sentinel-ecommerce
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch-search:
+    image: elasticsearch:8.11.0
+    hostname: elasticsearch-search
+    container_name: elasticsearch-search
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      xpack.security.enabled: "false"
+    ports:
+      - "9500:9200"
+      - "9600:9300"
+    volumes:
+      - shopvault-es-data:/usr/share/elasticsearch/data
+    networks:
+      - sentinel-ecommerce
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -v red"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  minio-storage:
+    image: minio/minio:latest
+    hostname: minio-storage
+    container_name: minio-storage
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: shopvault
+      MINIO_ROOT_PASSWORD: ShopVault2024!
+    command: server /data --console-address ":9001"
+    ports:
+      - "9540:9000"
+      - "9541:9001"
+    volumes:
+      - shopvault-minio-data:/data
+    networks:
+      - sentinel-ecommerce
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  shopvault-storefront:
+    image: node:20-alpine
+    hostname: shopvault-storefront
+    container_name: shopvault-storefront
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        npm init -y && npm install express && node -e "
+        const e=require('express'),app=e();app.use(e.json());
+        app.get('/health',(q,r)=>r.json({status:'ok',service:'shopvault-storefront',version:'3.2.1'}));
+        app.get('/api/products',(q,r)=>r.json({products:[{id:1,name:'Laptop Pro',price:1299.99,sku:'LAP-001'},{id:2,name:'Wireless Mouse',price:49.99,sku:'MOU-001'}],total:2}));
+        app.get('/api/categories',(q,r)=>r.json({categories:['Electronics','Accessories','Software']}));
+        app.listen(3000,()=>console.log('Storefront :3000'));"
+    ports:
+      - "9501:3000"
+    networks:
+      - sentinel-ecommerce
+
+  product-catalog-api:
+    image: node:20-alpine
+    hostname: product-catalog-api
+    container_name: product-catalog-api
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        npm init -y && npm install express && node -e "
+        const e=require('express'),app=e();app.use(e.json());
+        app.get('/health',(q,r)=>r.json({status:'ok',service:'product-catalog'}));
+        app.get('/api/v1/products',(q,r)=>r.json({products:[],page:1,limit:20}));
+        app.get('/api/v1/products/:id',(q,r)=>r.json({id:q.params.id,name:'Sample Product',price:99.99,stock:150}));
+        app.post('/api/v1/products/import',(q,r)=>r.json({imported:0,errors:[]}));
+        app.listen(3000,()=>console.log('Product Catalog :3000'));"
+    ports:
+      - "9502:3000"
+    networks:
+      - sentinel-ecommerce
+
+  payment-service:
+    image: node:20-alpine
+    hostname: payment-service
+    container_name: shopvault-payment-service
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        npm init -y && npm install express && node -e "
+        const e=require('express'),app=e();app.use(e.json());
+        app.get('/health',(q,r)=>r.json({status:'ok',service:'payment-service'}));
+        app.post('/api/v1/checkout',(q,r)=>r.json({order_id:'ord_'+Date.now(),status:'pending',total:q.body.total||0}));
+        app.post('/api/v1/payment/process',(q,r)=>r.json({payment_id:'pay_'+Date.now(),status:'captured',amount:q.body.amount}));
+        app.listen(3000,()=>console.log('Payment Service :3000'));"
+    ports:
+      - "9503:3000"
+    networks:
+      - sentinel-ecommerce
+
+  recommendation-svc:
+    image: python:3.11-slim
+    hostname: recommendation-svc
+    container_name: recommendation-svc
+    restart: unless-stopped
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        pip install flask --quiet && python3 -c "
+        from flask import Flask,jsonify,request
+        app=Flask(__name__)
+        @app.route('/health')
+        def h(): return jsonify(status='ok',service='recommendation-svc',model='collaborative-filtering-v2')
+        @app.route('/api/v1/recommend',methods=['POST'])
+        def r():
+            d=request.get_json(force=True) or {}
+            return jsonify(user_id=d.get('user_id'),recommendations=[{'product_id':101,'score':0.92},{'product_id':205,'score':0.87}])
+        app.run(host='0.0.0.0',port=5000)"
+    ports:
+      - "9504:5000"
+    networks:
+      - sentinel-ecommerce
+
+  admin-portal:
+    image: node:20-alpine
+    hostname: admin-portal
+    container_name: admin-portal
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      REQUIRE_AUTH: "false"
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        npm init -y && npm install express && node -e "
+        const e=require('express'),app=e();app.use(e.json());
+        const AUTH=process.env.REQUIRE_AUTH!=='false';
+        const authMw=(q,r,n)=>AUTH&&!q.headers.authorization?r.status(401).json({error:'Unauthorized'}):n();
+        app.get('/health',(q,r)=>r.json({status:'ok',service:'admin-portal',auth_required:AUTH}));
+        app.get('/admin/dashboard',authMw,(q,r)=>r.json({orders:8423,revenue:241983.42,users:12847,products:2341}));
+        app.get('/admin/users',authMw,(q,r)=>r.json({users:[{id:1,email:'admin@shopvault.com',role:'admin'},{id:2,email:'ops@shopvault.com',role:'operator'}]}));
+        app.get('/admin/config',(q,r)=>r.json({db_host:'inventory-postgres',cache_host:'cart-redis',env:'production'}));
+        app.listen(3000,()=>console.log('Admin Portal :3000 auth='+AUTH));"
+    ports:
+      - "9505:3000"
+    networks:
+      - sentinel-ecommerce
+
+  nginx-cdn-proxy:
+    image: nginx:1.25-alpine
+    hostname: nginx-cdn-proxy
+    container_name: nginx-cdn-proxy
+    restart: unless-stopped
+    ports:
+      - "9580:80"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - sentinel-ecommerce
+    depends_on:
+      - shopvault-storefront
+      - product-catalog-api

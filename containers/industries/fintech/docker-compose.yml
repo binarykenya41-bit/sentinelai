@@ -1,0 +1,193 @@
+name: sentinel-fintech
+
+networks:
+  sentinel-fintech:
+    driver: bridge
+
+volumes:
+  nexapay-postgres-data:
+  nexapay-vault-data:
+
+services:
+
+  nexapay-postgres:
+    image: postgres:15-alpine
+    hostname: nexapay-postgres
+    container_name: nexapay-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nexapay
+      POSTGRES_USER: nexapay
+      POSTGRES_PASSWORD: NexaPay2024!
+    ports:
+      - "9432:5432"
+    volumes:
+      - nexapay-postgres-data:/var/lib/postgresql/data
+      - ./config/init:/docker-entrypoint-initdb.d
+    networks:
+      - sentinel-fintech
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexapay"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nexapay-redis:
+    image: redis:7-alpine
+    hostname: nexapay-redis
+    container_name: nexapay-redis
+    restart: unless-stopped
+    command: redis-server --requirepass NexaRedis2024
+    ports:
+      - "9379:6379"
+    networks:
+      - sentinel-fintech
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "NexaRedis2024", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vault-secrets:
+    image: hashicorp/vault:1.15.2
+    hostname: vault-secrets
+    container_name: vault-secrets
+    restart: unless-stopped
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: nexapay-vault-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "9320:8200"
+    volumes:
+      - nexapay-vault-data:/vault/data
+    networks:
+      - sentinel-fintech
+
+  payment-gateway-api:
+    image: node:20-alpine
+    hostname: payment-gateway-api
+    container_name: payment-gateway-api
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        npm init -y && npm install express && node -e "
+        const e=require('express'),app=e();app.use(e.json());
+        app.get('/health',(q,r)=>r.json({status:'ok',service:'payment-gateway'}));
+        app.post('/api/v1/payment/charge',(q,r)=>r.json({transaction_id:'txn_'+Date.now(),status:'processed',amount:q.body.amount}));
+        app.get('/api/v1/payment/transactions',(q,r)=>r.json({transactions:[],total:0}));
+        app.listen(3000,()=>console.log('Payment Gateway :3000'));"
+    ports:
+      - "9301:3000"
+    networks:
+      - sentinel-fintech
+    depends_on:
+      nexapay-postgres:
+        condition: service_healthy
+
+  fraud-detection-svc:
+    image: python:3.11-slim
+    hostname: fraud-detection-svc
+    container_name: fraud-detection-svc
+    restart: unless-stopped
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        pip install flask --quiet && python3 -c "
+        from flask import Flask,jsonify,request
+        app=Flask(__name__)
+        @app.route('/health')
+        def h(): return jsonify(status='ok',service='fraud-detection',model_version='1.4.2')
+        @app.route('/api/v1/fraud/analyze',methods=['POST'])
+        def a():
+            d=request.get_json(force=True) or {}
+            risk=0.02 if float(d.get('amount',0))<10000 else 0.45
+            return jsonify(risk_score=risk,is_fraud=risk>0.7,model_version='1.4.2')
+        app.run(host='0.0.0.0',port=5000)"
+    ports:
+      - "9302:5000"
+    networks:
+      - sentinel-fintech
+
+  kyc-verification-api:
+    image: node:18-alpine
+    hostname: kyc-verification-api
+    container_name: kyc-verification-api
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        npm init -y && npm install express && node -e "
+        const e=require('express'),app=e();app.use(e.json());
+        app.get('/health',(q,r)=>r.json({status:'ok',service:'kyc-verification'}));
+        app.post('/api/v1/kyc/verify',(q,r)=>r.json({kyc_id:'kyc_'+Date.now(),status:'approved',risk_level:'low',checks:['identity','sanctions','pep']}));
+        app.listen(3000,()=>console.log('KYC Verification :3000'));"
+    ports:
+      - "9303:3000"
+    networks:
+      - sentinel-fintech
+
+  audit-log-service:
+    image: node:20-alpine
+    hostname: audit-log-service
+    container_name: audit-log-service
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        npm init -y && npm install express && node -e "
+        const e=require('express'),app=e();const logs=[];app.use(e.json());
+        app.get('/health',(q,r)=>r.json({status:'ok',service:'audit-log',entries:logs.length}));
+        app.post('/api/v1/audit/log',(q,r)=>{logs.push({...q.body,ts:new Date()});r.json({logged:true,id:'log_'+Date.now()});});
+        app.get('/api/v1/audit/logs',(q,r)=>r.json({logs:logs.slice(-100),total:logs.length}));
+        app.listen(3000,()=>console.log('Audit Log :3000'));"
+    ports:
+      - "9304:3000"
+    networks:
+      - sentinel-fintech
+
+  compliance-reporting-svc:
+    image: python:3.11-slim
+    hostname: compliance-reporting-svc
+    container_name: compliance-reporting-svc
+    restart: unless-stopped
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        pip install flask --quiet && python3 -c "
+        from flask import Flask,jsonify
+        import datetime
+        app=Flask(__name__)
+        @app.route('/health')
+        def h(): return jsonify(status='ok',service='compliance-reporting')
+        @app.route('/api/v1/compliance/report')
+        def r(): return jsonify(framework='PCI-DSS',level=1,score=87.4,controls_passed=112,controls_failed=18,generated_at=datetime.datetime.utcnow().isoformat())
+        app.run(host='0.0.0.0',port=5000)"
+    ports:
+      - "9305:5000"
+    networks:
+      - sentinel-fintech
+
+  nginx-lb:
+    image: nginx:1.25-alpine
+    hostname: nginx-lb
+    container_name: nexapay-nginx-lb
+    restart: unless-stopped
+    ports:
+      - "9380:80"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - sentinel-fintech
+    depends_on:
+      - payment-gateway-api
