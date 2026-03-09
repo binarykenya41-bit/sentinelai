@@ -35,6 +35,7 @@ async function main() {
 
   await runFile("schema.sql", join(__dirname, "schema.sql"))
   await runFile("seeds/dev.sql", join(__dirname, "seeds/dev.sql"))
+  await runFile("migrations/003-app-modules.sql", join(__dirname, "migrations/003-app-modules.sql"))
 
   console.log("\n✅  Migration complete!")
 }

@@ -1,0 +1,14 @@
+# ─── Grafana dashboard provisioning ─────────────────────────────────────────
+# All JSON files in this directory are loaded automatically on startup.
+apiVersion: 1
+
+providers:
+  - name: Logistics Dashboards
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

@@ -1,0 +1,20 @@
+# ─── Grafana PostgreSQL datasource — Shipment tracking DB ───────────────────
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL-Shipments
+    uid: postgres-logistics
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres-shipment:5432
+    database: shipments
+    user: logistics
+    secureJsonData:
+      password: logistics_pass
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 5
+      maxIdleConns: 2
+      postgresVersion: 1600
+      timescaledb: false
+    editable: true

@@ -1,0 +1,224 @@
+{
+  "realm": "logistics",
+  "enabled": true,
+  "displayName": "Sentinel Logistics",
+  "displayNameHtml": "<b>Sentinel Logistics</b>",
+  "loginTheme": "keycloak",
+  "accessTokenLifespan": 3600,
+  "ssoSessionMaxLifespan": 86400,
+  "offlineSessionMaxLifespan": 2592000,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+
+  "roles": {
+    "realm": [
+      { "name": "admin",      "description": "System Administrator — full access" },
+      { "name": "developer",  "description": "Software Developer — code & CI/CD" },
+      { "name": "operations", "description": "Operations Team — fleet & shipments" },
+      { "name": "analyst",    "description": "Data Analyst — dashboards & reports" }
+    ]
+  },
+
+  "groups": [
+    { "name": "admins",     "realmRoles": ["admin"] },
+    { "name": "developers", "realmRoles": ["developer"] },
+    { "name": "operations", "realmRoles": ["operations"] },
+    { "name": "analysts",   "realmRoles": ["analyst"] }
+  ],
+
+  "clients": [
+    {
+      "clientId": "gitlab",
+      "name": "GitLab",
+      "description": "GitLab CE — source control & CI/CD",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "gl-secret-sentinel-2024",
+      "redirectUris": [
+        "http://localhost:9080/*",
+        "http://gitlab.logistics.local/*"
+      ],
+      "webOrigins": ["+"],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "fullScopeAllowed": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+
+    {
+      "clientId": "grafana",
+      "name": "Grafana",
+      "description": "Grafana monitoring dashboards",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "gf-secret-sentinel-2024",
+      "redirectUris": [
+        "http://localhost:9100/*"
+      ],
+      "webOrigins": ["+"],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "fullScopeAllowed": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+
+    {
+      "clientId": "erpnext",
+      "name": "ERPNext",
+      "description": "ERPNext ERP — supply chain & operations",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "erp-secret-sentinel-2024",
+      "redirectUris": [
+        "http://localhost:9000/*"
+      ],
+      "webOrigins": ["+"],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "fullScopeAllowed": true,
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@logistics.local",
+      "firstName": "Alice",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "Alice123!", "temporary": false }
+      ],
+      "groups": ["/admins"],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "bob",
+      "email": "bob@logistics.local",
+      "firstName": "Bob",
+      "lastName": "Developer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "Bob123!", "temporary": false }
+      ],
+      "groups": ["/developers"],
+      "realmRoles": ["developer"]
+    },
+    {
+      "username": "carol",
+      "email": "carol@logistics.local",
+      "firstName": "Carol",
+      "lastName": "Operations",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "Carol123!", "temporary": false }
+      ],
+      "groups": ["/operations"],
+      "realmRoles": ["operations"]
+    },
+    {
+      "username": "dave",
+      "email": "dave@logistics.local",
+      "firstName": "Dave",
+      "lastName": "Analyst",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "Dave123!", "temporary": false }
+      ],
+      "groups": ["/analysts"],
+      "realmRoles": ["analyst"]
+    }
+  ]
+}

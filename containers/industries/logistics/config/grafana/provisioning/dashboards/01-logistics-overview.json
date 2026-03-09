@@ -1,0 +1,197 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "blue", "value": null }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "postgres-logistics" }, "format": "table", "rawSql": "SELECT COUNT(*) AS value FROM shipments", "refId": "A" }],
+      "title": "Total Shipments",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "postgres-logistics" }, "format": "table", "rawSql": "SELECT COUNT(*) AS value FROM shipments WHERE status = 'in_transit'", "refId": "A" }],
+      "title": "In Transit",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "orange", "value": null }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "postgres-logistics" }, "format": "table", "rawSql": "SELECT COUNT(*) AS value FROM shipments WHERE status = 'pending'", "refId": "A" }],
+      "title": "Pending",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "super-light-green", "value": null }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "postgres-logistics" }, "format": "table", "rawSql": "SELECT COUNT(*) AS value FROM shipments WHERE status = 'delivered'", "refId": "A" }],
+      "title": "Delivered",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 5,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "postgres-logistics" }, "format": "table", "rawSql": "SELECT COUNT(*) AS value FROM shipments WHERE status = 'failed'", "refId": "A" }],
+      "title": "Failed / Returned",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "blue", "value": null }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 6,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "postgres-logistics" }, "format": "table", "rawSql": "SELECT COUNT(*) AS value FROM vehicles WHERE status = 'in_transit'", "refId": "A" }],
+      "title": "Vehicles Active",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 7,
+      "options": {
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+        "format": "table",
+        "rawSql": "SELECT s.id, c.name AS customer, s.origin, s.destination, s.weight_kg, s.status, s.created_at FROM shipments s JOIN customers c ON s.customer_id = c.id ORDER BY s.created_at DESC LIMIT 15",
+        "refId": "A"
+      }],
+      "title": "Recent Shipments",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 8,
+      "options": {
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+        "format": "table",
+        "rawSql": "SELECT t.shipment_id, t.event_type, t.location_name, t.message, t.recorded_at FROM tracking_events t ORDER BY t.recorded_at DESC LIMIT 20",
+        "refId": "A"
+      }],
+      "title": "Live Tracking Feed",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "id": 9,
+      "options": {
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "postgres-logistics" },
+        "format": "table",
+        "rawSql": "SELECT v.plate, v.type, v.driver_name, v.status, s.id AS current_shipment, s.destination FROM vehicles v LEFT JOIN shipments s ON v.id = s.vehicle_id AND s.status = 'in_transit' ORDER BY v.status, v.plate",
+        "refId": "A"
+      }],
+      "title": "Fleet Status",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["logistics", "operations"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Logistics Operations",
+  "uid": "logistics-ops-001",
+  "version": 1
+}

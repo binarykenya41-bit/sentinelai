@@ -1,4 +1,6 @@
 # ─── Prometheus Configuration — Logistics Stack ──────────────────────────────
+# Scrapes: self, Grafana, Kafka (kafka-exporter), PostgreSQL (postgres-exporter),
+#          Redis (redis-exporter)
 # Official reference: https://prometheus.io/docs/prometheus/latest/configuration/configuration/
 global:
   scrape_interval: 15s
@@ -8,29 +10,28 @@ global:
     environment: demo
 
 scrape_configs:
-  # Prometheus self-monitoring
+  # ── Prometheus self-monitoring ─────────────────────────────────────────────
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Keycloak metrics (exposed at /metrics via KC_METRICS_ENABLED=true)
-  - job_name: keycloak
-    static_configs:
-      - targets: ["keycloak:8080"]
-    metrics_path: /metrics
-
-  # Kafka (via JMX exporter if added — placeholder for now)
-  # - job_name: kafka
-  #   static_configs:
-  #     - targets: ["kafka:9308"]
-
-  # PostgreSQL shipment DB (via postgres_exporter — placeholder)
-  # - job_name: postgres
-  #   static_configs:
-  #     - targets: ["postgres-exporter:9187"]
-
-  # Grafana self-monitoring
+  # ── Grafana self-monitoring ────────────────────────────────────────────────
   - job_name: grafana
     static_configs:
       - targets: ["grafana:3000"]
     metrics_path: /metrics
+
+  # ── Kafka exporter (danielqsj/kafka-exporter → :9308) ─────────────────────
+  - job_name: kafka-exporter
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
+
+  # ── PostgreSQL shipment DB (prometheuscommunity/postgres-exporter → :9187) ─
+  - job_name: postgres-exporter
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  # ── Redis tracking cache (oliver006/redis_exporter → :9121) ───────────────
+  - job_name: redis-exporter
+    static_configs:
+      - targets: ["redis-exporter:9121"]

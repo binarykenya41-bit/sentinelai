@@ -1,0 +1,122 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "kafka_brokers", "refId": "A" }],
+      "title": "Brokers Online",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "count(kafka_topic_partitions) or vector(0)", "refId": "A" }],
+      "title": "Topics",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "sum(kafka_topic_partitions) or vector(0)", "refId": "A" }],
+      "title": "Total Partitions",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 100 }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "sum(kafka_consumergroup_lag) or vector(0)", "refId": "A" }],
+      "title": "Total Consumer Lag",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "rate(kafka_topic_partition_current_offset{topic!~\"__.*\"}[5m])", "legendFormat": "{{topic}} [p{{partition}}]", "refId": "A" }
+      ],
+      "title": "Message Offset Growth Rate by Topic",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 6,
+      "options": { "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "10.2.0",
+      "targets": [{
+        "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+        "expr": "kafka_topic_partition_current_offset{topic!~\"__.*\"}",
+        "format": "table",
+        "instant": true,
+        "refId": "A"
+      }],
+      "title": "Topic Partition Offsets",
+      "type": "table",
+      "transformations": [{ "id": "organize", "options": { "excludeByName": { "__name__": true, "Time": false, "job": true, "instance": true }, "renameByName": { "topic": "Topic", "partition": "Partition", "Value": "Current Offset" } } }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 500 }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 7,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "kafka_consumergroup_lag", "legendFormat": "{{consumergroup}} - {{topic}}", "refId": "A" }
+      ],
+      "title": "Consumer Group Lag",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["logistics", "kafka", "events"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kafka Event Streaming",
+  "uid": "logistics-kafka-004",
+  "version": 1
+}

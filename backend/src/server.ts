@@ -16,6 +16,20 @@ import { dashboardRoutes } from "./routes/dashboard.js"
 import { vulnerabilitiesRoutes } from "./routes/vulnerabilities.js"
 import { patchRoutes } from "./routes/patches.js"
 import { infraScanRoutes } from "./routes/infra-scan.js"
+import { incidentsRoutes } from "./routes/incidents.js"
+import { risksRoutes } from "./routes/risks.js"
+import { devsecopsRoutes } from "./routes/devsecops.js"
+import { cloudSecurityRoutes } from "./routes/cloud-security.js"
+import { codeScanningRoutes } from "./routes/code-scanning.js"
+import { containerSecurityRoutes } from "./routes/container-security.js"
+import { malwareRoutes } from "./routes/malware.js"
+import { zeroDayRoutes } from "./routes/zero-day.js"
+import { redTeamRoutes } from "./routes/red-team.js"
+import { endpointSecurityRoutes } from "./routes/endpoint-security.js"
+import { darkWebRoutes } from "./routes/dark-web.js"
+import { phishingRoutes } from "./routes/phishing.js"
+import { settingsRoutes } from "./routes/settings.js"
+import { infrastructureRoutes } from "./routes/infrastructure.js"
 import { startScheduler } from "./services/scheduler.js"
 
 const PORT = parseInt(process.env.BACKEND_PORT ?? "8000")
@@ -87,6 +101,22 @@ await app.register(patchRoutes)
 
 // ---- Infrastructure Scanner (GitLab / WordPress / ERPNext / Keycloak / PG / Grafana) ----
 await app.register(infraScanRoutes)
+
+// ---- App Modules (Incident Response, Risks, DevSecOps, Cloud, Code, Container, Malware, etc.) ----
+await app.register(incidentsRoutes)
+await app.register(risksRoutes)
+await app.register(devsecopsRoutes)
+await app.register(cloudSecurityRoutes)
+await app.register(codeScanningRoutes)
+await app.register(containerSecurityRoutes)
+await app.register(malwareRoutes)
+await app.register(zeroDayRoutes)
+await app.register(redTeamRoutes)
+await app.register(endpointSecurityRoutes)
+await app.register(darkWebRoutes)
+await app.register(phishingRoutes)
+await app.register(settingsRoutes)
+await app.register(infrastructureRoutes)
 
 // ---- Global error handler ----
 app.setErrorHandler((err, _req, reply) => {

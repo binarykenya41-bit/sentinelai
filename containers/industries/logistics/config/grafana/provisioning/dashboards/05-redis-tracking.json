@@ -1,0 +1,132 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 100 }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "redis_connected_clients{job=\"redis-exporter\"}", "refId": "A" }],
+      "title": "Connected Clients",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 200000000 }, { "color": "red", "value": 240000000 }] }, "unit": "bytes" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "redis_memory_used_bytes{job=\"redis-exporter\"}", "refId": "A" }],
+      "title": "Memory Used",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "sum(redis_db_keys{job=\"redis-exporter\"}) or vector(0)", "refId": "A" }],
+      "title": "Total Keys",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "percentunit" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "10.2.0",
+      "targets": [{
+        "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+        "expr": "redis_keyspace_hits_total{job=\"redis-exporter\"} / (redis_keyspace_hits_total{job=\"redis-exporter\"} + redis_keyspace_misses_total{job=\"redis-exporter\"})",
+        "refId": "A"
+      }],
+      "title": "Cache Hit Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "rate(redis_commands_processed_total{job=\"redis-exporter\"}[5m])", "legendFormat": "Commands/sec", "refId": "A" }
+      ],
+      "title": "Redis Commands/sec",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 240000000 }] },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "redis_memory_used_bytes{job=\"redis-exporter\"}", "legendFormat": "Used", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "redis_memory_max_bytes{job=\"redis-exporter\"}", "legendFormat": "Max (256 MB limit)", "refId": "B" }
+      ],
+      "title": "Memory Usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus-logistics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "id": 7,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "rate(redis_keyspace_hits_total{job=\"redis-exporter\"}[5m])", "legendFormat": "Cache Hits/sec", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus-logistics" }, "expr": "rate(redis_keyspace_misses_total{job=\"redis-exporter\"}[5m])", "legendFormat": "Cache Misses/sec", "refId": "B" }
+      ],
+      "title": "Cache Hit / Miss Rate",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 38,
+  "tags": ["logistics", "redis", "cache"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Redis Tracking Cache",
+  "uid": "logistics-redis-005",
+  "version": 1
+}

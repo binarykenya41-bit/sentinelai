@@ -1,69 +1,53 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { BarChart3, Plus, X } from "lucide-react"
-import { toast } from "sonner"
+import { ShieldAlert, Plus, X } from "lucide-react"
+import { useState } from "react"
+import { useApi } from "@/hooks/use-api"
+import { risksApi, type Risk, type RiskStats } from "@/lib/api-client"
 
-const stats = [
-  { label: "Overall Risk Score", value: "68 / 100", color: "text-warning" },
-  { label: "Critical Risks", value: "12", color: "text-destructive" },
-  { label: "Accepted Risks", value: "8", color: "text-muted-foreground" },
-  { label: "Risk Reduction (30d)", value: "-14%", color: "text-success" },
-]
-
-const riskRegister = [
-  { id: "RSK-001", title: "Unpatched RCE in OpenSSL (NullRoute)", category: "Technical", likelihood: "Very High", impact: "Critical", score: 98, owner: "j.smith", treatment: "Remediate", dueDate: "2026-03-10", status: "Open" },
-  { id: "RSK-002", title: "DB port exposed to internet", category: "Infrastructure", likelihood: "High", impact: "Critical", score: 91, owner: "a.chen", treatment: "Remediate", dueDate: "2026-03-08", status: "In Progress" },
-  { id: "RSK-003", title: "No MFA on 114 accounts", category: "Identity", likelihood: "High", impact: "High", score: 78, owner: "r.patel", treatment: "Remediate", dueDate: "2026-03-15", status: "In Progress" },
-  { id: "RSK-004", title: "Credential leaks on dark web", category: "Human", likelihood: "Medium", impact: "High", score: 65, owner: "m.torres", treatment: "Monitor", dueDate: "Ongoing", status: "Monitoring" },
-  { id: "RSK-005", title: "S3 bucket with public read access", category: "Cloud", likelihood: "High", impact: "High", score: 72, owner: "a.chen", treatment: "Remediate", dueDate: "2026-03-09", status: "Open" },
-  { id: "RSK-006", title: "Docker API port 2375 exposed", category: "Container", likelihood: "Medium", impact: "Critical", score: 81, owner: "j.smith", treatment: "Remediate", dueDate: "2026-03-07", status: "Open" },
-  { id: "RSK-007", title: "Stale admin accounts (90d+)", category: "Identity", likelihood: "Low", impact: "High", score: 44, owner: "r.patel", treatment: "Remediate", dueDate: "2026-03-20", status: "Open" },
-  { id: "RSK-008", title: "No rate limiting on login API", category: "Application", likelihood: "Medium", impact: "Medium", score: 48, owner: "m.torres", treatment: "Accept", dueDate: "2026-04-01", status: "Accepted" },
-]
-
-const riskByCategory = [
-  { category: "Technical", score: 88, risks: 18 },
-  { category: "Cloud", score: 74, risks: 11 },
-  { category: "Identity", score: 71, risks: 9 },
-  { category: "Container", score: 82, risks: 7 },
-  { category: "Application", score: 55, risks: 14 },
-  { category: "Human", score: 62, risks: 6 },
-]
-
-const scoreColor = (n: number) => n >= 80 ? "text-destructive" : n >= 60 ? "text-warning" : "text-success"
-const statusBadge = (s: string) => {
-  if (s === "Open") return "bg-destructive/10 text-destructive border-destructive/20"
-  if (s === "In Progress" || s === "Monitoring") return "bg-warning/10 text-warning border-warning/20"
-  if (s === "Accepted") return "bg-muted text-muted-foreground border-border"
-  return "bg-success/10 text-success border-success/20"
+const riskColor = (score: number) => {
+  if (score >= 15) return "bg-destructive/10 text-destructive border-destructive/20"
+  if (score >= 10) return "bg-warning/10 text-warning border-warning/20"
+  if (score >= 5) return "bg-primary/10 text-primary border-primary/20"
+  return "bg-muted text-muted-foreground border-border"
 }
 
-const treatmentBadge = (t: string) => {
-  if (t === "Remediate") return "bg-primary/10 text-primary border-primary/20"
-  if (t === "Monitor") return "bg-warning/10 text-warning border-warning/20"
+const statusBadge = (s: string) => {
+  if (s === "Open") return "bg-destructive/10 text-destructive border-destructive/20"
+  if (s === "In Progress") return "bg-warning/10 text-warning border-warning/20"
+  if (s === "Mitigated") return "bg-success/10 text-success border-success/20"
   return "bg-muted text-muted-foreground border-border"
 }
 
 export default function RiskManagementPage() {
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: "", category: "Technical", likelihood: "Medium", impact: "High", owner: "", treatment: "Remediate", dueDate: "", description: "" })
+  const [form, setForm] = useState({ title: "", category: "Vulnerability Management", likelihood: "3", impact: "3", owner: "", mitigation: "" })
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = () => {
-    if (!form.title || !form.owner) {
-      toast.error("Please fill in all required fields")
-      return
-    }
-    const newId = `RSK-${String(riskRegister.length + 1).padStart(3, "0")}`
-    toast.success("Risk registered", { description: `${newId} added to risk register` })
-    setShowForm(false)
-    setForm({ title: "", category: "Technical", likelihood: "Medium", impact: "High", owner: "", treatment: "Remediate", dueDate: "", description: "" })
+  const { data: riskData, loading, refetch } = useApi(() => risksApi.list({ limit: 100 }))
+  const { data: stats } = useApi<RiskStats>(() => risksApi.stats())
+
+  const risks = riskData?.risks ?? []
+  const total = stats?.total ?? 0
+
+  async function handleCreate() {
+    if (!form.title) return
+    setSubmitting(true)
+    try {
+      await risksApi.create({
+        title: form.title, category: form.category,
+        likelihood: parseInt(form.likelihood), impact: parseInt(form.impact),
+        owner: form.owner || undefined, mitigation: form.mitigation || undefined,
+      })
+      setShowForm(false)
+      setForm({ title: "", category: "Vulnerability Management", likelihood: "3", impact: "3", owner: "", mitigation: "" })
+      refetch()
+    } finally { setSubmitting(false) }
   }
 
   return (
@@ -72,103 +56,115 @@ export default function RiskManagementPage() {
       <div className="flex flex-col gap-6 p-6">
 
         <div className="grid grid-cols-4 gap-4">
-          {stats.map((s) => (
+          {[
+            { label: "Total Risks", value: total, color: "text-primary" },
+            { label: "Critical (≥15)", value: stats?.critical ?? 0, color: "text-destructive" },
+            { label: "High (≥10)", value: stats?.high ?? 0, color: "text-warning" },
+            { label: "Mitigated", value: stats?.by_status?.Mitigated ?? 0, color: "text-success" },
+          ].map((s) => (
             <Card key={s.label} className="border-border bg-card">
               <CardContent className="p-5">
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                <p className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</p>
                 <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          {riskByCategory.map((c) => (
-            <Card key={c.category} className="border-border bg-card">
-              <CardContent className="flex flex-col gap-2 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-card-foreground">{c.category}</span>
+        <div className="grid grid-cols-3 gap-6">
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Risk by Category</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 p-4">
+              {Object.entries(stats?.by_category ?? {}).map(([cat, count]) => (
+                <div key={cat} className="flex items-center justify-between">
+                  <span className="text-xs text-card-foreground">{cat}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{c.risks} risks</span>
-                    <span className={`font-mono text-sm font-bold ${scoreColor(c.score)}`}>{c.score}</span>
+                    <Progress value={(count / Math.max(total, 1)) * 100} className="w-16 h-1.5 bg-secondary [&>div]:bg-primary" />
+                    <span className="font-mono text-xs text-muted-foreground w-4">{count}</span>
                   </div>
                 </div>
-                <Progress value={c.score} className={`h-1.5 bg-secondary ${c.score >= 80 ? "[&>div]:bg-destructive" : c.score >= 60 ? "[&>div]:bg-warning" : "[&>div]:bg-success"}`} />
-              </CardContent>
-            </Card>
-          ))}
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card col-span-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Risk Heat Map (Likelihood × Impact)</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="overflow-x-auto">
+                <table className="text-center text-xs">
+                  <thead>
+                    <tr>
+                      <th className="text-[10px] text-muted-foreground px-2 py-1">L\I</th>
+                      {[1,2,3,4,5].map(i => <th key={i} className="text-muted-foreground px-3 py-1">{i}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[5,4,3,2,1].map(likelihood => (
+                      <tr key={likelihood}>
+                        <td className="text-muted-foreground px-2 py-1 font-semibold">{likelihood}</td>
+                        {[1,2,3,4,5].map(impact => {
+                          const score = likelihood * impact
+                          const count = risks.filter((r: Risk) => r.likelihood === likelihood && r.impact === impact).length
+                          return (
+                            <td key={impact} className={`h-8 w-10 font-bold rounded-sm ${score >= 15 ? "bg-destructive/30 text-destructive" : score >= 10 ? "bg-warning/30 text-warning" : score >= 5 ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                              {count > 0 ? count : ""}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-[10px] text-muted-foreground mt-2">Likelihood (rows, 5=highest) × Impact (cols, 5=highest). Numbers = risk count.</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Add Risk Form */}
         {showForm && (
           <Card className="border-primary/30 bg-card">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold uppercase tracking-wider text-primary">Register New Risk</CardTitle>
-                <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-card-foreground">
-                  <X className="h-4 w-4" />
-                </button>
+                <button onClick={() => setShowForm(false)}><X className="h-4 w-4 text-muted-foreground" /></button>
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 p-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risk Title <span className="text-destructive">*</span></label>
-                  <input
-                    className="rounded-md bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary placeholder:text-muted-foreground"
-                    placeholder="Brief description of the risk"
-                    value={form.title}
-                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  />
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Title</label>
+                  <input className="bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary" placeholder="Risk description" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Category</label>
-                  <select className="rounded-md bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary"
-                    value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                    {["Technical", "Infrastructure", "Identity", "Cloud", "Container", "Application", "Human"].map(s => <option key={s}>{s}</option>)}
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Category</label>
+                  <select className="bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                    {["Vulnerability Management","Identity & Access","Supply Chain","Cloud Security","Human Factor","Insider Threat","Network Security","Business Continuity"].map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Likelihood</label>
-                  <select className="rounded-md bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary"
-                    value={form.likelihood} onChange={e => setForm(f => ({ ...f, likelihood: e.target.value }))}>
-                    {["Very High", "High", "Medium", "Low", "Very Low"].map(s => <option key={s}>{s}</option>)}
-                  </select>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Owner</label>
+                  <input className="bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary" placeholder="e.g. sec-ops" value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Impact</label>
-                  <select className="rounded-md bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary"
-                    value={form.impact} onChange={e => setForm(f => ({ ...f, impact: e.target.value }))}>
-                    {["Critical", "High", "Medium", "Low"].map(s => <option key={s}>{s}</option>)}
-                  </select>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Likelihood (1–5)</label>
+                  <input type="number" min={1} max={5} className="bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary" value={form.likelihood} onChange={e => setForm(f => ({ ...f, likelihood: e.target.value }))} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Owner <span className="text-destructive">*</span></label>
-                  <input className="rounded-md bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary placeholder:text-muted-foreground"
-                    placeholder="e.g. j.smith" value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Treatment</label>
-                  <select className="rounded-md bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary"
-                    value={form.treatment} onChange={e => setForm(f => ({ ...f, treatment: e.target.value }))}>
-                    {["Remediate", "Monitor", "Transfer", "Accept"].map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Due Date</label>
-                  <input type="date" className="rounded-md bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary"
-                    value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Impact (1–5)</label>
+                  <input type="number" min={1} max={5} className="bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary" value={form.impact} onChange={e => setForm(f => ({ ...f, impact: e.target.value }))} />
                 </div>
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</label>
-                  <textarea className="rounded-md bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary placeholder:text-muted-foreground resize-none h-16"
-                    placeholder="Detailed description and context..."
-                    value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mitigation Plan</label>
+                  <textarea className="bg-secondary border border-border text-card-foreground text-xs px-3 py-2 outline-none focus:border-primary resize-none h-16" value={form.mitigation} onChange={e => setForm(f => ({ ...f, mitigation: e.target.value }))} />
                 </div>
               </div>
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" size="sm" onClick={() => setShowForm(false)} className="border-border text-muted-foreground">Cancel</Button>
-                <Button size="sm" className="bg-primary text-white hover:bg-primary/90" onClick={handleSubmit}>Register Risk</Button>
+                <Button size="sm" className="bg-primary text-primary-foreground" onClick={handleCreate} disabled={submitting}>{submitting ? "Saving…" : "Register Risk"}</Button>
               </div>
             </CardContent>
           </Card>
@@ -178,44 +174,44 @@ export default function RiskManagementPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
+                <ShieldAlert className="h-4 w-4 text-warning" />
                 <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Risk Register</CardTitle>
               </div>
-              <Button size="sm" variant="outline" className="h-7 border-primary/40 text-primary hover:bg-primary/10 text-xs gap-1.5" onClick={() => setShowForm(true)}>
+              <Button size="sm" variant="outline" className="border-primary/40 text-primary hover:bg-primary/10 h-7 text-xs gap-1.5" onClick={() => setShowForm(true)}>
                 <Plus className="h-3 w-3" /> Register Risk
               </Button>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  {["ID", "Risk", "Category", "Likelihood", "Impact", "Score", "Owner", "Treatment", "Due", "Status"].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {riskRegister.map((r) => (
-                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-secondary/50">
-                    <td className="px-3 py-2">
-                      <Link href={`/risk-management/${r.id}`} className="font-mono text-xs text-primary hover:underline">{r.id}</Link>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Link href={`/risk-management/${r.id}`} className="text-xs text-card-foreground hover:text-primary transition-colors max-w-xs block">{r.title}</Link>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{r.category}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{r.likelihood}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{r.impact}</td>
-                    <td className="px-3 py-2"><span className={`font-mono text-sm font-bold ${scoreColor(r.score)}`}>{r.score}</span></td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{r.owner}</td>
-                    <td className="px-3 py-2"><Badge variant="outline" className={treatmentBadge(r.treatment)}>{r.treatment}</Badge></td>
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{r.dueDate}</td>
-                    <td className="px-3 py-2"><Badge variant="outline" className={statusBadge(r.status)}>{r.status}</Badge></td>
+            {loading ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">Loading risks…</div>
+            ) : risks.length === 0 ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">No risks registered.</div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    {["Title", "Category", "L", "I", "Score", "Status", "Owner", "Review Date"].map((h) => (
+                      <th key={h} className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {risks.map((r: Risk) => (
+                    <tr key={r.risk_id} className="border-b border-border last:border-0 hover:bg-secondary/50">
+                      <td className="px-4 py-3 text-xs text-card-foreground max-w-xs">{r.title}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{r.category}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-center text-card-foreground">{r.likelihood}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-center text-card-foreground">{r.impact}</td>
+                      <td className="px-4 py-3"><Badge variant="outline" className={riskColor(r.risk_score)}>{r.risk_score}</Badge></td>
+                      <td className="px-4 py-3"><Badge variant="outline" className={statusBadge(r.status)}>{r.status}</Badge></td>
+                      <td className="px-4 py-3 text-xs text-card-foreground">{r.owner ?? "—"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{r.review_date ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
       </div>

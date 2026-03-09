@@ -1,55 +1,56 @@
+"use client"
+
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Server, Database, Container, Globe, Cpu } from "lucide-react"
 import Link from "next/link"
-
-const stats = [
-  { label: "Total Assets", value: "1,284", icon: Cpu, color: "text-primary" },
-  { label: "Scanned", value: "1,201", icon: Server, color: "text-success" },
-  { label: "Critical Assets", value: "38", icon: Database, color: "text-destructive" },
-  { label: "Unscanned", value: "83", icon: Globe, color: "text-warning" },
-]
-
-const assets = [
-  { id: "AST-001", hostname: "prod-web-01.internal", ip: "10.0.1.10", type: "Server", os: "Ubuntu 22.04", criticality: "Critical", vulns: 7, lastScan: "2026-03-06 01:00 UTC", status: "Online" },
-  { id: "AST-002", hostname: "prod-db-primary.internal", ip: "10.0.2.5", type: "Database", os: "RHEL 9", criticality: "Critical", vulns: 3, lastScan: "2026-03-06 01:00 UTC", status: "Online" },
-  { id: "AST-003", hostname: "k8s-node-01.internal", ip: "10.0.3.11", type: "Container Host", os: "Flatcar Linux", criticality: "High", vulns: 12, lastScan: "2026-03-05 23:00 UTC", status: "Online" },
-  { id: "AST-004", hostname: "api-gateway.internal", ip: "10.0.1.50", type: "Service", os: "Alpine 3.18", criticality: "High", vulns: 5, lastScan: "2026-03-06 00:30 UTC", status: "Online" },
-  { id: "AST-005", hostname: "cache-prod-01.internal", ip: "10.0.4.20", type: "Server", os: "Ubuntu 20.04", criticality: "Medium", vulns: 9, lastScan: "2026-03-05 22:00 UTC", status: "Degraded" },
-  { id: "AST-006", hostname: "monitoring.internal", ip: "10.0.5.8", type: "Server", os: "Debian 12", criticality: "Medium", vulns: 2, lastScan: "2026-03-06 00:00 UTC", status: "Online" },
-  { id: "AST-007", hostname: "backup-storage-01.internal", ip: "10.0.6.3", type: "Server", os: "Ubuntu 22.04", criticality: "High", vulns: 0, lastScan: "2026-03-04 18:00 UTC", status: "Offline" },
-  { id: "AST-008", hostname: "mail-relay.internal", ip: "10.0.1.80", type: "Service", os: "Postfix on Debian", criticality: "Low", vulns: 1, lastScan: "2026-03-05 20:00 UTC", status: "Online" },
-]
+import { useApi } from "@/hooks/use-api"
+import { assetsApi, type Asset, type AssetStats } from "@/lib/api-client"
 
 const typeIcon = (type: string) => {
-  if (type === "Database") return <Database className="h-3 w-3" />
-  if (type.includes("Container")) return <Container className="h-3 w-3" />
-  if (type === "Service") return <Globe className="h-3 w-3" />
+  if (type === "database") return <Database className="h-3 w-3" />
+  if (type === "container") return <Container className="h-3 w-3" />
+  if (type === "service") return <Globe className="h-3 w-3" />
   return <Server className="h-3 w-3" />
 }
 
 const critColor = (c: string) => {
-  if (c === "Critical") return "bg-destructive/10 text-destructive border-destructive/20"
-  if (c === "High") return "bg-warning/10 text-warning border-warning/20"
-  if (c === "Medium") return "bg-primary/10 text-primary border-primary/20"
+  if (c === "critical") return "bg-destructive/10 text-destructive border-destructive/20"
+  if (c === "high") return "bg-warning/10 text-warning border-warning/20"
+  if (c === "medium") return "bg-primary/10 text-primary border-primary/20"
   return "bg-muted text-muted-foreground border-border"
 }
 
 const statusColor = (s: string) => {
-  if (s === "Online") return "text-success"
-  if (s === "Degraded") return "text-warning"
+  if (s === "current") return "text-success"
+  if (s === "behind") return "text-warning"
   return "text-muted-foreground"
 }
 
 export default function AssetsPage() {
+  const { data: assetsData, loading: assetsLoading } = useApi(() => assetsApi.list({ limit: 100 }))
+  const { data: stats } = useApi<AssetStats>(() => assetsApi.stats())
+
+  const assets = assetsData?.assets ?? []
+  const total = stats?.total ?? 0
+  const critical = stats?.by_criticality?.critical ?? 0
+  const byType = stats?.by_type ?? {}
+  const typeEntries = Object.entries(byType)
+  const behind = stats?.by_patch_status?.behind ?? 0
+
   return (
     <div className="flex flex-col">
       <AppHeader title="Asset Inventory" />
       <div className="flex flex-col gap-6 p-6">
         <div className="grid grid-cols-4 gap-4">
-          {stats.map((s) => (
+          {[
+            { label: "Total Assets", value: total.toLocaleString(), icon: Cpu, color: "text-primary" },
+            { label: "Critical Assets", value: critical.toString(), icon: Database, color: "text-destructive" },
+            { label: "Behind on Patches", value: behind.toString(), icon: Server, color: "text-warning" },
+            { label: "Asset Types", value: Object.keys(byType).length.toString(), icon: Globe, color: "text-success" },
+          ].map((s) => (
             <Card key={s.label} className="border-border bg-card">
               <CardContent className="flex items-center gap-4 p-5">
                 <s.icon className={`h-8 w-8 ${s.color}`} />
@@ -62,65 +63,82 @@ export default function AssetsPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
-          {[{ label: "Servers", val: 68 }, { label: "Containers", val: 82 }, { label: "Databases", val: 91 }, { label: "Services", val: 74 }].map((t) => (
-            <Card key={t.label} className="border-border bg-card">
-              <CardContent className="flex flex-col gap-2 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{t.label} scanned</span>
-                  <span className="text-xs font-semibold text-card-foreground">{t.val}%</span>
-                </div>
-                <Progress value={t.val} className="h-1.5 bg-secondary [&>div]:bg-primary" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {typeEntries.length > 0 && (
+          <div className="grid grid-cols-4 gap-4">
+            {typeEntries.slice(0, 4).map(([type, count]) => {
+              const pct = total > 0 ? Math.round((count / total) * 100) : 0
+              return (
+                <Card key={type} className="border-border bg-card">
+                  <CardContent className="flex flex-col gap-2 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground capitalize">{type}s</span>
+                      <span className="text-xs font-semibold text-card-foreground">{count}</span>
+                    </div>
+                    <Progress value={pct} className="h-1.5 bg-secondary [&>div]:bg-primary" />
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
 
         <Card className="border-border bg-card">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">All Assets</CardTitle>
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              All Assets {total > 0 && `(${total})`}
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    {["ID", "Hostname", "IP", "Type", "OS", "Criticality", "Vulns", "Last Scan", "Status"].map((h) => (
-                      <th key={h} className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {assets.map((a) => (
-                    <tr key={a.id} className="border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer">
-                      <td className="px-4 py-3">
-                        <Link href={`/assets/${a.id}`} className="font-mono text-xs font-semibold text-primary hover:underline">{a.id}</Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link href={`/assets/${a.id}`} className="font-mono text-xs text-card-foreground hover:text-primary transition-colors">{a.hostname}</Link>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.ip}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          {typeIcon(a.type)}{a.type}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-card-foreground">{a.os}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant="outline" className={critColor(a.criticality)}>{a.criticality}</Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`font-mono text-xs font-bold ${a.vulns > 5 ? "text-destructive" : a.vulns > 0 ? "text-warning" : "text-success"}`}>{a.vulns}</span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.lastScan}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-semibold ${statusColor(a.status)}`}>{a.status}</span>
-                      </td>
+            {assetsLoading ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">Loading assets…</div>
+            ) : assets.length === 0 ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">No assets found.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Hostname", "IP", "Type", "OS", "Criticality", "Patch Status", "Open Vulns", "Last Scan", "Source"].map((h) => (
+                        <th key={h} className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {assets.map((a: Asset) => (
+                      <tr key={a.asset_id} className="border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer">
+                        <td className="px-4 py-3">
+                          <Link href={`/assets/${a.asset_id}`} className="font-mono text-xs font-semibold text-primary hover:underline">{a.hostname ?? a.asset_id}</Link>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{(a.ip ?? []).join(", ") || "—"}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            {typeIcon(a.type)}<span className="capitalize">{a.type}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-card-foreground">{a.os_version ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className={critColor(a.criticality ?? "low")}>{a.criticality ?? "low"}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-semibold capitalize ${statusColor(a.patch_status ?? "unknown")}`}>{a.patch_status ?? "unknown"}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`font-mono text-xs font-bold ${(a.open_vulnerabilities?.length ?? 0) > 5 ? "text-destructive" : (a.open_vulnerabilities?.length ?? 0) > 0 ? "text-warning" : "text-success"}`}>
+                            {a.open_vulnerabilities?.length ?? 0}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                          {a.last_scan_at ? new Date(a.last_scan_at).toLocaleString() : "Never"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="border-border text-muted-foreground text-[10px]">{a.source ?? "manual"}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
