@@ -1,0 +1,358 @@
+export declare function getEcommerceData(): {
+    org: {
+        org_id: string;
+        name: string;
+        plan_tier: string;
+        compliance_frameworks: string[];
+    };
+    assets: {
+        asset_id: string;
+        org_id: string;
+        type: string;
+        hostname: string;
+        ip: string[];
+        tags: string[];
+        criticality: string;
+        last_scan_at: string;
+    }[];
+    vulnerabilities: {
+        vuln_id: string;
+        cve_id: string;
+        cvss_v3: number;
+        cwe_ids: string[];
+        mitre_techniques: string[];
+        epss_score: number;
+        kev_status: boolean;
+        affected_assets: string[];
+        blast_radius: string;
+        scan_source: string;
+        detection_at: string;
+        remediation_status: string;
+    }[];
+    exploit_results: {
+        result_id: string;
+        vuln_id: string;
+        sandbox_id: string;
+        success: boolean;
+        confidence: number;
+        technique: string;
+        payload_hash: string;
+        output_log_ref: string;
+        duration_ms: number;
+        executed_at: string;
+    }[];
+    patch_records: {
+        patch_id: string;
+        vuln_id: string;
+        branch_name: string;
+        commit_sha: string;
+        pr_url: string;
+        ci_status: string;
+        resim_result: string;
+        merge_status: string;
+        authored_by: string;
+        created_at: string;
+    }[];
+    compliance_reports: ({
+        report_id: string;
+        org_id: string;
+        framework: string;
+        period_start: string;
+        period_end: string;
+        generated_at: string;
+        evidence_refs: string[];
+        controls_mapped: {
+            "CC1.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC2.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC3.1": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "CC3.2": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC4.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC5.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC6.1": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "CC6.2": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC6.3": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC6.6": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC6.7": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC6.8": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "CC7.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC7.2": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "CC7.3": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC8.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC9.1": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-1.1"?: undefined;
+            "REQ-1.2"?: undefined;
+            "REQ-2.1"?: undefined;
+            "REQ-2.2"?: undefined;
+            "REQ-3.2"?: undefined;
+            "REQ-3.4"?: undefined;
+            "REQ-3.5"?: undefined;
+            "REQ-4.1"?: undefined;
+            "REQ-5.1"?: undefined;
+            "REQ-5.2"?: undefined;
+            "REQ-5.3"?: undefined;
+            "REQ-6.1"?: undefined;
+            "REQ-6.2"?: undefined;
+            "REQ-6.3"?: undefined;
+            "REQ-6.4"?: undefined;
+            "REQ-7.1"?: undefined;
+            "REQ-7.2"?: undefined;
+            "REQ-8.1"?: undefined;
+            "REQ-8.2"?: undefined;
+            "REQ-8.3"?: undefined;
+            "REQ-10.1"?: undefined;
+            "REQ-11.1"?: undefined;
+            "REQ-12.1"?: undefined;
+        };
+    } | {
+        report_id: string;
+        org_id: string;
+        framework: string;
+        period_start: string;
+        period_end: string;
+        generated_at: string;
+        evidence_refs: string[];
+        controls_mapped: {
+            "REQ-1.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-1.2": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-2.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-2.2": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-3.2": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-3.4": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-3.5": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-4.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-5.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-5.2": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-5.3": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-6.1": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-6.2": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-6.3": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-6.4": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-7.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-7.2": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-8.1": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-8.2": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-8.3": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "REQ-10.1": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-11.1": {
+                status: string;
+                description: string;
+                cve_ids: string[];
+                evidence: never[];
+            };
+            "REQ-12.1": {
+                status: string;
+                description: string;
+                cve_ids: never[];
+                evidence: string[];
+            };
+            "CC1.1"?: undefined;
+            "CC2.1"?: undefined;
+            "CC3.1"?: undefined;
+            "CC3.2"?: undefined;
+            "CC4.1"?: undefined;
+            "CC5.1"?: undefined;
+            "CC6.1"?: undefined;
+            "CC6.2"?: undefined;
+            "CC6.3"?: undefined;
+            "CC6.6"?: undefined;
+            "CC6.7"?: undefined;
+            "CC6.8"?: undefined;
+            "CC7.1"?: undefined;
+            "CC7.2"?: undefined;
+            "CC7.3"?: undefined;
+            "CC8.1"?: undefined;
+            "CC9.1"?: undefined;
+        };
+    })[];
+};
+//# sourceMappingURL=ecommerce.d.ts.map

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { GitBranch, GitPullRequest, CheckCircle, Circle, XCircle, Loader2, AlertTriangle, RefreshCw, ExternalLink } from "lucide-react"
+import { GitBranch, GitPullRequest, CheckCircle, Circle, XCircle, Loader2, AlertTriangle, RefreshCw, ExternalLink, GitMerge, ShieldCheck, Download } from "lucide-react"
 import { useApi } from "@/hooks/use-api"
 import { patchesApi, integrationsApi, type PatchRecord, type PatchStats } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -48,10 +48,15 @@ export default function PatchAutomationPage() {
   const { data: stats } = useApi(() => patchesApi.stats(), [])
   const { data: integrationStatus } = useApi(() => integrationsApi.status(), [])
   const [mergingId, setMergingId] = useState<string | null>(null)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [pushingLogistics, setPushingLogistics] = useState(false)
+  const [installing, setInstalling] = useState(false)
+  const [installResults, setInstallResults] = useState<Array<{ service: string; status: string; actions: string[]; errors: string[] }> | null>(null)
 
   const handleMerge = async (patch: PatchRecord) => {
     setMergingId(patch.patch_id)
-    const toastId = toast.loading(`Merging PR for ${(patch.vulnerabilities as { cve_id?: string } | undefined)?.cve_id ?? patch.vuln_id.slice(0, 8)}...`)
+    const cve = (patch.vulnerabilities as { cve_id?: string } | undefined)?.cve_id ?? patch.vuln_id.slice(0, 8)
+    const toastId = toast.loading(`Merging PR for ${cve}…`)
     try {
       await patchesApi.merge(patch.patch_id)
       toast.dismiss(toastId)
@@ -62,6 +67,63 @@ export default function PatchAutomationPage() {
       toast.error(err instanceof Error ? err.message : "Merge failed")
     } finally {
       setMergingId(null)
+    }
+  }
+
+  const handleApprove = async (patch: PatchRecord) => {
+    setApprovingId(patch.patch_id)
+    const cve = (patch.vulnerabilities as { cve_id?: string } | undefined)?.cve_id ?? patch.vuln_id.slice(0, 8)
+    const toastId = toast.loading(`Approving PR for ${cve}…`)
+    try {
+      await patchesApi.approve(patch.patch_id)
+      toast.dismiss(toastId)
+      toast.success("PR approved")
+      refetch()
+    } catch (err) {
+      toast.dismiss(toastId)
+      toast.error(err instanceof Error ? err.message : "Approve failed")
+    } finally {
+      setApprovingId(null)
+    }
+  }
+
+  const handlePushLogistics = async () => {
+    setPushingLogistics(true)
+    const toastId = toast.loading("Committing logistics patch files to GitHub…")
+    try {
+      const result = await patchesApi.pushLogistics()
+      toast.dismiss(toastId)
+      if (result.pr_url) {
+        toast.success(`PR opened: ${result.pr_url}`)
+      } else {
+        toast.success(`${result.records_created} patch records created (no GitHub token — saved locally)`)
+      }
+      refetch()
+    } catch (err) {
+      toast.dismiss(toastId)
+      toast.error(err instanceof Error ? err.message : "Push failed")
+    } finally {
+      setPushingLogistics(false)
+    }
+  }
+
+  const handleInstall = async () => {
+    setInstalling(true)
+    setInstallResults(null)
+    const toastId = toast.loading("Applying hardening to live containers…")
+    try {
+      const result = await patchesApi.install()
+      toast.dismiss(toastId)
+      const ok = result.results.filter((r) => r.status === "ok").length
+      const needsRestart = result.results.filter((r) => r.status === "needs_restart").length
+      toast.success(`Hardening applied: ${ok} services patched, ${needsRestart} need restart`)
+      setInstallResults(result.results)
+      refetch()
+    } catch (err) {
+      toast.dismiss(toastId)
+      toast.error(err instanceof Error ? err.message : "Install failed")
+    } finally {
+      setInstalling(false)
     }
   }
 
@@ -121,14 +183,70 @@ export default function PatchAutomationPage() {
           ))}
         </div>
 
+        {/* Action bar */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-border text-xs gap-1.5"
+            onClick={handlePushLogistics}
+            disabled={pushingLogistics}
+          >
+            {pushingLogistics ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitMerge className="h-3 w-3" />}
+            {pushingLogistics ? "Pushing…" : "Push Logistics Patches"}
+          </Button>
+
+          <Button
+            size="sm"
+            className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs gap-1.5"
+            onClick={handleInstall}
+            disabled={installing}
+          >
+            {installing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            {installing ? "Installing…" : "Install / Update System"}
+          </Button>
+
+          <Button variant="outline" size="sm" className="border-border bg-secondary text-muted-foreground hover:bg-accent ml-auto" onClick={refetch}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
+          </Button>
+        </div>
+
+        {/* Install results */}
+        {installResults && (
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-success" /> Hardening Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              {installResults.map((r) => (
+                <div key={r.service} className={`rounded border px-3 py-2 text-xs ${
+                  r.status === "ok" ? "border-success/30 bg-success/5" :
+                  r.status === "needs_restart" ? "border-warning/30 bg-warning/5" :
+                  "border-destructive/30 bg-destructive/5"
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold capitalize">{r.service}</span>
+                    <Badge variant="outline" className={`text-[10px] border-0 ${
+                      r.status === "ok" ? "bg-success/10 text-success" :
+                      r.status === "needs_restart" ? "bg-warning/10 text-warning" :
+                      "bg-destructive/10 text-destructive"
+                    }`}>{r.status === "needs_restart" ? "Needs Restart" : r.status.toUpperCase()}</Badge>
+                  </div>
+                  {r.actions.map((a) => <p key={a} className="text-success ml-2">→ {a}</p>)}
+                  {r.errors.map((e) => <p key={e} className="text-destructive ml-2">✗ {e}</p>)}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Header row */}
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            AI-Generated Patches — {patches.length} records
+            Patches — {patches.length} records
           </h2>
-          <Button variant="outline" size="sm" className="border-border bg-secondary text-muted-foreground hover:bg-accent" onClick={refetch}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
-          </Button>
         </div>
 
         {/* Patch list */}
@@ -171,13 +289,27 @@ export default function PatchAutomationPage() {
                       {patch.merge_status === "open" && (
                         <Button
                           size="sm"
+                          variant="outline"
+                          className="h-7 border-chart-1/40 text-chart-1 hover:bg-chart-1/10 text-xs"
+                          onClick={() => handleApprove(patch)}
+                          disabled={approvingId === patch.patch_id}
+                        >
+                          {approvingId === patch.patch_id
+                            ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Approving…</>
+                            : <><CheckCircle className="h-3 w-3 mr-1" />Approve</>
+                          }
+                        </Button>
+                      )}
+                      {(patch.merge_status === "open" || patch.merge_status === "approved") && (
+                        <Button
+                          size="sm"
                           className="h-7 bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
                           onClick={() => handleMerge(patch)}
                           disabled={mergingId === patch.patch_id}
                         >
                           {mergingId === patch.patch_id
-                            ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Merging...</>
-                            : "Merge"
+                            ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Merging…</>
+                            : <><GitMerge className="h-3 w-3 mr-1" />Merge PR</>
                           }
                         </Button>
                       )}

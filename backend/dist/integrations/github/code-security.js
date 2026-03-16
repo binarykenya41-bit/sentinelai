@@ -13,7 +13,7 @@ export async function getCodeScanningAlerts(owner, repo, state = "open") {
         rule_id: a.rule.id ?? "",
         rule_severity: a.rule.severity ?? null,
         rule_description: a.rule.description ?? null,
-        state: a.state,
+        state: a.state ?? "open",
         html_url: a.html_url,
         cwe_ids: (a.rule.tags ?? []).filter((t) => t.startsWith("external/cwe")),
         created_at: a.created_at,
@@ -56,6 +56,7 @@ export async function getDependabotAlerts(owner, repo, state = "open") {
 // Fetch GitHub Security Advisory API — public advisories for a package
 export async function getSecurityAdvisories(ecosystem, packageName) {
     const octokit = getOctokit();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await octokit.securityAdvisories.listGlobalAdvisories({
         ecosystem: ecosystem,
         affects: packageName,

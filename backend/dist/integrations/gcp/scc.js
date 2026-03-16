@@ -7,7 +7,7 @@ export async function getSccFindings(state = "ACTIVE", severities = ["CRITICAL",
     const projectId = getProjectId();
     const severityFilter = severities.map((s) => `severity="${s}"`).join(" OR ");
     const filter = `state="${state}" AND (${severityFilter})`;
-    const { data } = await scc.projects.findings.list({
+    const { data } = await scc.projects.sources.findings.list({
         parent: `projects/${projectId}/sources/-`,
         filter,
         pageSize,

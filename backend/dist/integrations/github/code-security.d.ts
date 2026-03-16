@@ -30,7 +30,7 @@ export interface DependabotAlert {
     created_at: string;
     fixed_at: string | null;
 }
-export declare function getCodeScanningAlerts(owner: string, repo: string, state?: "open" | "closed" | "dismissed"): Promise<CodeScanAlert[]>;
+export declare function getCodeScanningAlerts(owner: string, repo: string, state?: "open" | "dismissed" | "fixed"): Promise<CodeScanAlert[]>;
 export declare function getDependabotAlerts(owner: string, repo: string, state?: "open" | "dismissed" | "fixed"): Promise<DependabotAlert[]>;
 export declare function getSecurityAdvisories(ecosystem: string, packageName: string): Promise<{
     ghsa_id: string;

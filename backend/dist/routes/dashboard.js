@@ -112,17 +112,33 @@ export async function dashboardRoutes(app) {
                 latest[r.framework] = r;
         }
         const controls = [];
+        const fwLabel = (fw) => fw.toUpperCase()
+            .replace("ISO27001", "ISO 27001")
+            .replace("SOC2", "SOC 2")
+            .replace("PCIDSS", "PCI-DSS");
         for (const [fw, report] of Object.entries(latest)) {
             const mapped = report.controls_mapped;
             if (!mapped)
                 continue;
             for (const [controlId, ctrl] of Object.entries(mapped)) {
-                const status = ctrl.status === "pass" ? "Passing" : "Failing";
-                const progress = ctrl.status === "pass" ? 100 : 30;
+                let status;
+                let progress;
+                if (ctrl.status === "pass") {
+                    status = "Passing";
+                    progress = 100;
+                }
+                else if (ctrl.status === "in_progress") {
+                    status = "In Progress";
+                    progress = 55;
+                }
+                else {
+                    status = "Failing";
+                    progress = 15;
+                }
                 controls.push({
                     id: controlId,
                     control: ctrl.description ?? controlId,
-                    framework: fw.toUpperCase().replace("ISO27001", "ISO 27001").replace("SOC2", "SOC 2").replace("PCIDSS", "PCI-DSS"),
+                    framework: fwLabel(fw),
                     status,
                     progress,
                     cve_ids: ctrl.cve_ids ?? [],
@@ -148,14 +164,15 @@ export async function dashboardRoutes(app) {
         const result = Object.values(latest).map((r) => {
             const controls = r.controls_mapped;
             const total = controls ? Object.keys(controls).length : 0;
-            const passing = controls
-                ? Object.values(controls).filter((c) => c.status === "pass").length
-                : 0;
+            const passing = controls ? Object.values(controls).filter((c) => c.status === "pass").length : 0;
+            const in_progress = controls ? Object.values(controls).filter((c) => c.status === "in_progress").length : 0;
+            const failing = total - passing - in_progress;
             return {
                 framework: r.framework,
                 total_controls: total,
                 passing,
-                failing: total - passing,
+                in_progress,
+                failing,
                 score: total ? Math.round((passing / total) * 100) : 0,
                 generated_at: r.generated_at,
             };

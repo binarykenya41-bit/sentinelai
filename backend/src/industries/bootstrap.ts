@@ -30,6 +30,7 @@ export async function bootstrapIndustry(industry: Industry): Promise<{
   await seedVulnerabilities(data.vulnerabilities)
   await seedExploitResults(data.exploit_results)
   await seedPatchRecords(data.patch_records)
+  await seedComplianceReports(data.compliance_reports)
 
   // Start containers asynchronously — don't block the response
   const composePath = path.join(COMPOSE_BASE, industry, "docker-compose.yml")
@@ -81,6 +82,12 @@ async function seedPatchRecords(records: Record<string, unknown>[]) {
   if (!records.length) return
   const { error } = await supabase.from("patch_records").upsert(records, { onConflict: "patch_id" })
   if (error) throw new Error(`patch_records seed failed: ${error.message}`)
+}
+
+async function seedComplianceReports(reports: Record<string, unknown>[]) {
+  if (!reports.length) return
+  const { error } = await supabase.from("compliance_reports").upsert(reports, { onConflict: "report_id" })
+  if (error) throw new Error(`compliance_reports seed failed: ${error.message}`)
 }
 
 async function startContainers(composePath: string, industry: string) {

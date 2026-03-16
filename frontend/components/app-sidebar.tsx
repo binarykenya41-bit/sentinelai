@@ -38,8 +38,7 @@ const navGroups: NavGroup[] = [
     group: "Simulation & Attack",
     items: [
       { label: "Exploit Lab", href: "/exploit-lab", icon: FlaskConical },
-      { label: "Logistics Lab", href: "/logistics-lab", icon: Server },
-      { label: "Red Team", href: "/red-team", icon: Swords },
+{ label: "Red Team", href: "/red-team", icon: Swords },
       { label: "Attack Graph", href: "/attack-graph", icon: Network },
       { label: "Phishing & Social Eng.", href: "/phishing", icon: Mail },
     ],

@@ -1,24 +1,29 @@
 "use client"
 
+import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Code, GitBranch, AlertCircle } from "lucide-react"
+import { Code, GitBranch, AlertCircle, RefreshCw, ExternalLink } from "lucide-react"
 import { useApi } from "@/hooks/use-api"
 import { codeScanningApi, type CodeFinding, type CodeScanningStats } from "@/lib/api-client"
 
+// Case-insensitive — API may return "critical" or "Critical"
 const sevBadge = (s: string) => {
-  if (s === "Critical") return "bg-destructive/10 text-destructive border-destructive/20"
-  if (s === "High") return "bg-warning/10 text-warning border-warning/20"
-  if (s === "Medium") return "bg-primary/10 text-primary border-primary/20"
+  const l = s.toLowerCase()
+  if (l === "critical") return "bg-destructive/10 text-destructive border-destructive/20"
+  if (l === "high")     return "bg-warning/10 text-warning border-warning/20"
+  if (l === "medium")   return "bg-primary/10 text-primary border-primary/20"
   return "bg-muted text-muted-foreground border-border"
 }
 
 const statusBadge = (s: string) => {
-  if (s === "Open") return "bg-destructive/10 text-destructive border-destructive/20"
-  if (s === "In Progress") return "bg-warning/10 text-warning border-warning/20"
-  if (s === "Resolved") return "bg-success/10 text-success border-success/20"
+  const l = s.toLowerCase()
+  if (l === "open")        return "bg-destructive/10 text-destructive border-destructive/20"
+  if (l === "in_progress" || l === "in progress") return "bg-warning/10 text-warning border-warning/20"
+  if (l === "resolved" || l === "fixed") return "bg-success/10 text-success border-success/20"
   return "bg-muted text-muted-foreground border-border"
 }
 
@@ -29,7 +34,7 @@ const scoreColor = (score: number) => {
 }
 
 export default function CodeScanningPage() {
-  const { data: findingsData, loading } = useApi(() => codeScanningApi.list({ limit: 100 }))
+  const { data: findingsData, loading, error, refetch } = useApi(() => codeScanningApi.list({ limit: 100 }))
   const { data: stats } = useApi<CodeScanningStats>(() => codeScanningApi.stats())
 
   const findings = findingsData?.findings ?? []
@@ -39,6 +44,15 @@ export default function CodeScanningPage() {
     <div className="flex flex-col">
       <AppHeader title="Code Scanning (SAST/DAST)" />
       <div className="flex flex-col gap-6 p-6">
+
+        {error && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-warning/20 bg-warning/10 p-3 text-xs text-warning">
+            <span><AlertCircle className="inline h-3.5 w-3.5 mr-1.5" />Backend unreachable — {error}</span>
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-warning text-xs" onClick={refetch}>
+              <RefreshCw className="h-3 w-3 mr-1" />Retry
+            </Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-4 gap-4">
           {[
@@ -134,14 +148,14 @@ export default function CodeScanningPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border">
-                      {["Repo", "Tool", "Title", "Severity", "Category", "File", "Status", "Detected"].map(h => (
+                      {["Repo", "Tool", "Title", "Severity", "Category", "File", "Status", "Detected", ""].map(h => (
                         <th key={h} className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {findings.map((f: CodeFinding) => (
-                      <tr key={f.finding_id} className="border-b border-border last:border-0 hover:bg-secondary/50">
+                      <tr key={f.finding_id} className="border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer">
                         <td className="px-4 py-3 font-mono text-xs text-primary">{f.repo.split("/").pop()}</td>
                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{f.tool}</td>
                         <td className="px-4 py-3 text-xs text-card-foreground max-w-xs">{f.title}</td>
@@ -152,6 +166,13 @@ export default function CodeScanningPage() {
                         </td>
                         <td className="px-4 py-3"><Badge variant="outline" className={statusBadge(f.status)}>{f.status}</Badge></td>
                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">{new Date(f.detected_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <Link href={`/code-scanning/${f.finding_id}`}>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground">
+                              <ExternalLink className="h-3 w-3 mr-1" />Detail
+                            </Button>
+                          </Link>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

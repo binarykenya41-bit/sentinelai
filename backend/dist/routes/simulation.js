@@ -94,6 +94,22 @@ export async function simulationRoutes(app) {
             return reply.status(404).send({ error: error.message });
         return reply.send(data);
     });
+    // PATCH /api/simulation/results/:id — save terminal output after dry-run
+    app.patch("/api/simulation/results/:id", async (req, reply) => {
+        const { output_text } = req.body;
+        if (!output_text)
+            return reply.status(400).send({ error: "output_text required" });
+        // Store in output_log_ref (repurposed for inline text in dry-run mode)
+        const { data, error } = await supabase
+            .from("exploit_results")
+            .update({ output_log_ref: output_text.slice(0, 8000) })
+            .eq("result_id", req.params.id)
+            .select()
+            .single();
+        if (error)
+            return reply.status(404).send({ error: error.message });
+        return reply.send(data);
+    });
     // GET /api/simulation/stats — aggregate simulation statistics
     app.get("/api/simulation/stats", async (_req, reply) => {
         const { data, error } = await supabase

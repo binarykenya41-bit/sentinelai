@@ -37,6 +37,7 @@ import { infrastructureRoutes } from "./routes/infrastructure.js"
 import { industriesRoutes } from "./routes/industries.js"
 import { startScheduler } from "./services/scheduler.js"
 import { proxyRoutes } from './routes/proxy.js'
+import { seedDataRoutes } from './routes/seed-data.js'
 
 const PORT = parseInt(process.env.PORT ?? process.env.BACKEND_PORT ?? "8000")
 
@@ -111,6 +112,7 @@ await app.register(infrastructureRoutes)
 await app.register(industriesRoutes)
 await app.register(logisticsLabRoutes)
 await app.register(proxyRoutes)
+await app.register(seedDataRoutes)
 
 // ---- Global error handler ----
 app.setErrorHandler((err, _req, reply) => {

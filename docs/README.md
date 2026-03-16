@@ -17,6 +17,7 @@
 8. [AI Intelligence Layer](./08-ai-layer.md)
 9. [Containers & Deployment](./09-containers-deployment.md)
 10. [Compliance & Governance](./10-compliance.md)
+16. [Claude Code Session 2026-03-15](./16-claude-session-2026-03-15.md) — Full env audit, install, and bring-up
 
 ---
 

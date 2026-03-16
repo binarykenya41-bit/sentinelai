@@ -187,23 +187,33 @@ export interface PatchStats {
 }
 
 export interface ThreatFeedEntry {
-  id: string
+  feed_id: string
   cve_id: string
   sync_source: string[]
   description: string
   cvss_v3: number | null
+  cvss_vector: string | null
   cwe_ids: string[] | null
   published_at: string
+  last_modified_at: string | null
+  vuln_status: string | null
   epss_score: number | null
+  epss_percentile: number | null
   kev_status: boolean
+  kev_date_added: string | null
+  kev_due_date: string | null
+  kev_ransomware: boolean
   exploit_available: boolean
   exploit_maturity: string | null
+  exploit_price: string | null
   patch_available: boolean
+  countermeasure: string | null
   vendor: string | null
   product: string | null
+  vuln_class: string | null
   mitre_techniques: string[] | null
   priority_score: number
-  synced_at: string
+  updated_at: string | null
 }
 
 export interface ThreatFeedStats {
@@ -323,6 +333,19 @@ export const simulationApi = {
     vuln_id: string; cve_id?: string; module_id?: string
     target_host: string; target_port?: number; operator_id: string; dry_run?: boolean
   }) => apiFetch<ExploitResult>("/api/simulation/run", { method: "POST", body: JSON.stringify(body) }),
+  saveOutput: (result_id: string, output_text: string) =>
+    apiFetch<ExploitResult>(`/api/simulation/results/${result_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ output_text }),
+    }),
+  getResult: (result_id: string) => apiFetch<ExploitResult & { output_log_ref?: string }>(`/api/simulation/results/${result_id}`),
+  seedExploits: () => apiFetch<{ ok: boolean; vulns_inserted: number; inserted: string[] }>("/api/seed/exploits", { method: "POST", body: "{}" }),
+  seedCompliance: () => apiFetch<{ ok: boolean; frameworks_seeded: string[] }>("/api/seed/compliance", { method: "POST", body: "{}" }),
+  seedThreatIntel: () => apiFetch<{
+    ok: boolean
+    summary: Record<string, string>
+    results: Record<string, { inserted: number; skipped: number; errors: string[] }>
+  }>("/api/seed/threat-intel", { method: "POST", body: "{}" }),
 }
 
 // ─── Attack Graph ─────────────────────────────────────────────────────────────
@@ -479,9 +502,20 @@ export const patchesApi = {
       body: JSON.stringify({ vuln_id }),
     }),
   merge: (patch_id: string) =>
-    apiFetch<PatchRecord>(`/api/patches/${patch_id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ merge_status: "merged", ci_status: "passed" }),
+    apiFetch<PatchRecord>(`/api/patches/${patch_id}/merge`, { method: "POST" }),
+  approve: (patch_id: string) =>
+    apiFetch<PatchRecord>(`/api/patches/${patch_id}/approve`, { method: "POST" }),
+  pushLogistics: () =>
+    apiFetch<{ ok: boolean; branch: string; pr_url: string | null; commit_sha: string | null; records_created: number }>(
+      "/api/patches/logistics/push", { method: "POST" }
+    ),
+  install: (services?: string[]) =>
+    apiFetch<{
+      ok: boolean
+      results: Array<{ service: string; status: string; actions: string[]; errors: string[] }>
+    }>("/api/patches/install", {
+      method: "POST",
+      body: JSON.stringify({ services }),
     }),
 }
 
